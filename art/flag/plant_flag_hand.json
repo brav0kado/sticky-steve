@@ -1,0 +1,15 @@
+{
+	"_about": "Steve's hand per frame of plant_flag.png: [x, y] of the arm-tip pixel inside the 64x64 cell. The pole attaches here (pivot = pixel centre, so add 0.5). Hand-picked by Julia 2026-10-15; tests/boot_checks.gd fails if a point stops landing on an arm pixel (redrawn frame = re-pick). feet_row: the row under Steve's feet, so offset.y = -(feet_row - 32) = -11, same as steve.png.",
+	"cell": [64, 64],
+	"feet_row": 43,
+	"hand": {
+		"raise_pole": [[28, 35], [25, 32], [25, 17]],
+		"spin_pole": [[25, 17], [25, 17], [25, 17], [25, 17], [25, 17]],
+		"plant": [[25, 32], [26, 36]]
+	},
+	"pole_grip": {
+		"_about": "Where the hand holds pole.png (32x32, a 2px vertical bar at x 16-17). spin: twirled around its middle. plant: held near the bottom so the tip drives into the ground on the last plant frame, then the waving flag replaces it (flag.png's pole base is at about (25, 31)).",
+		"spin": [16.5, 16],
+		"plant": [16.5, 26]
+	}
+}

@@ -57,14 +57,22 @@ frame order and timing come from the **tags** in the .aseprite:
 |---|---|---|
 | `art/steve/steve.png` | 32x32 | idle 5, jump_charge_1 3, jump_charge_2 3, jump_charge_3 3, jump 4, jump_stop 4, fall 6, land 4 |
 | `art/flag/flag.png` | 32x32 | flag_wave 6 |
-| `art/flag/plant_flag.png` | 64x64 | raise_pole 3, spin_pole 5 (PNG out of date, see below) |
+| `art/flag/plant_flag.png` | 64x64 | raise_pole 3, spin_pole 5, plant 2 (built with `--tags`, see below) |
 | `art/props/pole.png` | 32x32 | single frame |
 
 Steve's feet are on row 27 of his 32x32 cell, so his sprite uses `offset = (0, -11)`: the node's
 origin is then the point between his feet.
 
-**Known art issue:** `plant_flag.png` has 10 frames (rows of 3/5/2) but `plant_flag.aseprite`
-has 8 in two tags, so no SpriteFrames is generated for it yet. Save and re-export it.
+**Plant flag.** `pole.png` spins in Steve's hand during `spin_pole`; once planted, `flag.png` takes
+over. The hand position per frame is in `art/flag/plant_flag_hand.json` (hand-picked; the boot test
+fails if a point stops landing on Steve's arm, so a redrawn frame means re-picking). The PNG has a
+third row (`plant`) that `plant_flag.aseprite` doesn't, so it's built with an override until the
+.aseprite is saved with that tag:
+
+    tools/aseprite_frames.py art/source/plant_flag.aseprite art/flag/plant_flag.png art/flag/plant_flag_frames.tres --tags raise_pole:3,spin_pole:5,plant:2
+
+The tool checks every claimed cell holds pixels and no drawn cell is left untagged, so a wrong
+`--tags` is refused.
 
 ## Palette
 
