@@ -1,0 +1,31 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="SpriteFrames" path="res://art/steve/steve_frames.tres" id="1"]
+
+[node name="Main" type="Node2D"]
+
+[node name="Sky" type="ColorRect" parent="."]
+offset_right = 640.0
+offset_bottom = 360.0
+color = Color(0.13, 0.15, 0.2, 1)
+
+[node name="Ground" type="ColorRect" parent="."]
+offset_top = 296.0
+offset_right = 640.0
+offset_bottom = 360.0
+color = Color(0.29, 0.25, 0.22, 1)
+
+[node name="Steve" type="AnimatedSprite2D" parent="." groups=["player"]]
+position = Vector2(320, 296)
+sprite_frames = ExtResource("1")
+animation = &"idle"
+autoplay = "idle"
+offset = Vector2(0, -11)
+
+[node name="Note" type="Label" parent="."]
+offset_left = 16.0
+offset_top = 16.0
+offset_right = 624.0
+offset_bottom = 64.0
+text = "Sticky Steve: setup build (no gameplay yet)
+F11 fullscreen   F12 bug report"

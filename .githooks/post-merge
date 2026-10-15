@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# After a pull: import new/changed art so the game never runs against a stale .godot/ cache
+# (otherwise every new texture fails with "Unable to open file: res://.godot/imported/...ctex").
+# Enable once per clone:  git config core.hooksPath .githooks
+cd "$(git rev-parse --show-toplevel)" || exit 0
+godot_bin="${GODOT:-$(command -v godot || command -v godot4 || true)}"
+if [ -z "$godot_bin" ]; then
+	echo "post-merge: godot not on PATH (set GODOT=/path/to/godot); open the editor once to import." >&2
+	exit 0
+fi
+echo "post-merge: importing assets with $godot_bin ..."
+"$godot_bin" --headless --path . --import >/dev/null 2>&1 || echo "post-merge: import failed; open the editor to see why." >&2
