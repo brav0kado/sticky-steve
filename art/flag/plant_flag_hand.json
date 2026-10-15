@@ -5,7 +5,7 @@
 	"hand": {
 		"raise_pole": [[28, 35], [25, 32], [25, 17]],
 		"spin_pole": [[25, 17], [25, 17], [25, 17], [25, 17], [25, 17]],
-		"plant": [[25, 32], [26, 36]]
+		"plant_pole": [[25, 32], [26, 36]]
 	},
 	"pole_grip": {
 		"_about": "Where the hand holds pole.png (32x32, a 2px vertical bar at x 16-17). spin: twirled around its middle. plant: held near the bottom so the tip drives into the ground on the last plant frame, then the waving flag replaces it (flag.png's pole base is at about (25, 31)).",

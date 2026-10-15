@@ -1,0 +1,150 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/block.gd" id="1"]
+
+[sub_resource type="RectangleShape2D" id="summit_zone"]
+size = Vector2(260, 40)
+
+[node name="Tower" type="Node2D"]
+
+[node name="Ground" type="StaticBody2D" parent="."]
+position = Vector2(-240, 0)
+script = ExtResource("1")
+size = Vector2(1120, 200)
+surface = 0
+route_step = 0
+
+[node name="WallLeft" type="StaticBody2D" parent="."]
+position = Vector2(-240, -1500)
+script = ExtResource("1")
+size = Vector2(240, 1500)
+surface = 0
+route_step = -1
+
+[node name="WallRight" type="StaticBody2D" parent="."]
+position = Vector2(640, -1500)
+script = ExtResource("1")
+size = Vector2(240, 1500)
+surface = 0
+route_step = -1
+
+[node name="Step01" type="StaticBody2D" parent="."]
+position = Vector2(170, -60)
+script = ExtResource("1")
+size = Vector2(100, 16)
+surface = 0
+route_step = 1
+
+[node name="Step02" type="StaticBody2D" parent="."]
+position = Vector2(350, -130)
+script = ExtResource("1")
+size = Vector2(100, 16)
+surface = 0
+route_step = 2
+
+[node name="Step03" type="StaticBody2D" parent="."]
+position = Vector2(520, -210)
+script = ExtResource("1")
+size = Vector2(120, 16)
+surface = 0
+route_step = 3
+
+[node name="Step04" type="StaticBody2D" parent="."]
+position = Vector2(350, -290)
+script = ExtResource("1")
+size = Vector2(100, 16)
+surface = 0
+route_step = 4
+
+[node name="Step05" type="StaticBody2D" parent="."]
+position = Vector2(200, -360)
+script = ExtResource("1")
+size = Vector2(90, 16)
+surface = 0
+route_step = 5
+
+[node name="Step06" type="StaticBody2D" parent="."]
+position = Vector2(60, -440)
+script = ExtResource("1")
+size = Vector2(80, 16)
+surface = 0
+route_step = 6
+
+[node name="Step07" type="StaticBody2D" parent="."]
+position = Vector2(180, -520)
+script = ExtResource("1")
+size = Vector2(80, 16)
+surface = 0
+route_step = 7
+
+[node name="StickyPad" type="StaticBody2D" parent="."]
+position = Vector2(300, -600)
+script = ExtResource("1")
+size = Vector2(24, 50)
+surface = 1
+route_step = 8
+
+[node name="Step09" type="StaticBody2D" parent="."]
+position = Vector2(150, -640)
+script = ExtResource("1")
+size = Vector2(75, 16)
+surface = 0
+route_step = 9
+
+[node name="Step10" type="StaticBody2D" parent="."]
+position = Vector2(40, -715)
+script = ExtResource("1")
+size = Vector2(80, 16)
+surface = 0
+route_step = 10
+
+[node name="Step11" type="StaticBody2D" parent="."]
+position = Vector2(180, -790)
+script = ExtResource("1")
+size = Vector2(80, 16)
+surface = 0
+route_step = 11
+
+[node name="Step12" type="StaticBody2D" parent="."]
+position = Vector2(330, -860)
+script = ExtResource("1")
+size = Vector2(90, 16)
+surface = 0
+route_step = 12
+
+[node name="Step13" type="StaticBody2D" parent="."]
+position = Vector2(480, -930)
+script = ExtResource("1")
+size = Vector2(80, 16)
+surface = 0
+route_step = 13
+
+[node name="StickyWall" type="StaticBody2D" parent="."]
+position = Vector2(616, -1030)
+script = ExtResource("1")
+size = Vector2(24, 60)
+surface = 1
+route_step = 14
+
+[node name="Step15" type="StaticBody2D" parent="."]
+position = Vector2(500, -1060)
+script = ExtResource("1")
+size = Vector2(70, 16)
+surface = 0
+route_step = 15
+
+[node name="TopBlock" type="StaticBody2D" parent="."]
+position = Vector2(200, -1130)
+script = ExtResource("1")
+size = Vector2(260, 16)
+surface = 0
+route_step = 16
+
+[node name="Summit" type="Area2D" parent="."]
+position = Vector2(330, -1150)
+collision_layer = 0
+collision_mask = 2
+monitorable = false
+
+[node name="Zone" type="CollisionShape2D" parent="Summit"]
+shape = SubResource("summit_zone")

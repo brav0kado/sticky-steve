@@ -71,6 +71,11 @@ func _check_backgrounds(nyx8: GDScript) -> void:
 		"Nyx8.STEVE matches the colours in %s" % STEVE_SHEET)
 	_check(not nyx8.BACKGROUND.any(func(c: Color) -> bool: return _in(c, _steve)), "Nyx8.BACKGROUND has none of Steve's colours")
 
+	# Blocks draw themselves in code (no texture to scan): check the colours they draw with.
+	var block: GDScript = load("res://scripts/block.gd")
+	for c: Color in block.FILL.values() + block.EDGE.values():
+		_check(_in_palette(c) and not _in(c, _steve), "Block draws #%s: NYX8 and not one of Steve's" % c.to_html(false))
+
 	if DirAccess.dir_exists_absolute(WORLD_ART):
 		for path in _files(WORLD_ART, ".png"):
 			for c in _colors_of(Image.load_from_file(ProjectSettings.globalize_path(path))):

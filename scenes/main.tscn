@@ -1,32 +1,59 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=8 format=3]
 
-[ext_resource type="SpriteFrames" path="res://art/steve/steve_frames.tres" id="1"]
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/tower.tscn" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/steve.tscn" id="3"]
+[ext_resource type="Script" path="res://scripts/game_camera.gd" id="4"]
+[ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
+
+[sub_resource type="Curve" id="dust_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.5), 0.0, 0.0, 0, 0]
+point_count = 2
 
 [node name="Main" type="Node2D"]
+script = ExtResource("1")
 
-[node name="Sky" type="ColorRect" parent="." groups=["background"]]
-offset_right = 640.0
-offset_bottom = 360.0
+[node name="Sky" type="CanvasLayer" parent="."]
+layer = -10
+
+[node name="Fill" type="ColorRect" parent="Sky" groups=["background"]]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 color = Color(0.6, 0.4588, 0.4667, 1)
 
-[node name="Ground" type="ColorRect" parent="." groups=["background"]]
-offset_top = 296.0
-offset_right = 640.0
-offset_bottom = 360.0
-color = Color(0.5059, 0.3843, 0.4431, 1)
+[node name="Tower" parent="." instance=ExtResource("2")]
 
-[node name="Steve" type="AnimatedSprite2D" parent="." groups=["player"]]
-position = Vector2(320, 296)
-sprite_frames = ExtResource("1")
-animation = &"idle"
-autoplay = "idle"
-offset = Vector2(0, -11)
+[node name="Flags" type="Node2D" parent="."]
 
-[node name="Note" type="Label" parent="."]
-offset_left = 16.0
-offset_top = 16.0
-offset_right = 624.0
-offset_bottom = 64.0
-theme_override_colors/font_color = Color(0.03137, 0.07843, 0.1176, 1)
-text = "Sticky Steve: setup build (no gameplay yet)
-F11 fullscreen   F12 bug report"
+[node name="Steve" parent="." instance=ExtResource("3")]
+position = Vector2(80, 0)
+
+[node name="Dust" type="CPUParticles2D" parent="."]
+emitting = false
+amount = 8
+lifetime = 0.45
+one_shot = true
+explosiveness = 1.0
+emission_shape = 3
+emission_rect_extents = Vector2(6, 1)
+direction = Vector2(0, -1)
+spread = 80.0
+gravity = Vector2(0, 220)
+initial_velocity_min = 25.0
+initial_velocity_max = 60.0
+scale_amount_min = 1.0
+scale_amount_max = 2.0
+scale_amount_curve = SubResource("dust_scale")
+color = Color(0.3059, 0.2863, 0.3725, 1)
+
+[node name="Camera" type="Camera2D" parent="."]
+process_callback = 0
+limit_bottom = 48
+script = ExtResource("4")
+target_path = NodePath("../Steve")
+
+[node name="HUD" type="CanvasLayer" parent="."]
+script = ExtResource("5")

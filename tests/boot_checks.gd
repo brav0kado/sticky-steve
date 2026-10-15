@@ -6,14 +6,14 @@ extends SceneTree
 ## tag -> frame count, from art/source/stickysteve.aseprite. Change both together.
 const STEVE := {
 	"idle": 5, "jump_charge_1": 3, "jump_charge_2": 3, "jump_charge_3": 3,
-	"jump": 4, "jump_stop": 4, "fall": 6, "land": 4,
+	"jump": 4, "jump_stop": 4, "fall": 6, "land": 4, "walk_right": 3,
 }
 const ONE_SHOT := ["jump", "jump_stop", "land"]
-const PLANT := {"raise_pole": 3, "spin_pole": 5, "plant": 2}
-const PLANT_ONE_SHOT := ["raise_pole", "plant"]
+const PLANT := {"raise_pole": 3, "spin_pole": 5, "plant_pole": 2}
+const PLANT_ONE_SHOT := ["raise_pole", "plant_pole"]
 const HAND_JSON := "res://art/flag/plant_flag_hand.json"
 const INK := Color("08141e")  ## Steve's outline/limb colour: every hand point must be on it
-const ACTIONS := ["move_left", "move_right", "jump", "pause", "toggle_fullscreen", "debug_report"]
+const ACTIONS := ["move_left", "move_right", "jump", "pause", "toggle_fullscreen", "debug_report", "plant_flag", "respawn"]
 
 var _fails := 0
 
