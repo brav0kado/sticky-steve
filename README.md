@@ -29,9 +29,19 @@ before playing. Symptom if you skip it: `Unable to open file: res://.godot/impor
 | Space                   | A            | jump: hold to charge, release to jump (`jump`) |
 | F                       | Y            | plant a flag: the checkpoint (`plant_flag`) |
 | R                       | Back         | back to the last flag (`respawn`)    |
-| Esc                     | Start        | pause (`pause`)                      |
+| Esc                     | Start        | pause menu: resume, restart run, settings, quit to title (`pause`) |
 | F11                     |              | fullscreen                           |
 | F12                     |              | bug report (see below)               |
+
+## Menus
+
+The game boots to the **title** (`scenes/title.tscn`): Climb, Settings, Reset progress (press
+twice), Quit, with your bests underneath. **Esc / pad Start** pauses the climb (Resume, Restart
+run, Settings, Quit to title). **Settings**: master, sound-effect and music volume (left/right on
+a row) and fullscreen, saved in `user://settings.cfg` (`scripts/settings.gd`, autoload
+`Settings`; audio buses Master/SFX/Music in `default_bus_layout.tres`). Menus are keyboard and
+pad first: focus is always on a button. On the summit card: Enter climbs again, Esc goes to the
+title. Pressing F when you can't plant says why ("flag in 12s", "land to plant").
 
 ## How it plays (the rules the tests hold)
 
@@ -127,7 +137,9 @@ tile art in `art/world/` and add background nodes to group `background`: the tes
 
 | Path | What |
 |---|---|
-| `scenes/main.tscn` | the world: sky, tower, Steve, camera, HUD, dust (`scripts/main.gd` wires the juice) |
+| `scenes/title.tscn` + `scripts/title.gd` | title screen (the project's main scene) |
+| `scenes/main.tscn` | the climb: sky, tower, Steve, camera, HUD, dust, pause (`scripts/main.gd` wires the juice) |
+| `scripts/pause_menu.gd`, `scripts/settings_panel.gd`, `scripts/ui.gd` | pause, settings panel, shared NYX8 menu theme |
 | `scenes/steve.tscn` + `scripts/steve.gd` | Steve: state machine, all movement rules |
 | `scenes/tower.tscn` + `scripts/block.gd` | the greybox tower; `Block` = one rectangle (SOLID or STICKY) |
 | `scripts/game_camera.gd` | follow + zoom camera |
@@ -150,3 +162,4 @@ Physics layers: 1 world, 2 player, 3 sticky, 4 hazard.
     godot --headless --path . -s res://tests/steve_checks.gd     # every movement rule, frame by frame, plus the camera
     godot --headless --path . -s res://tests/route_checks.gd     # a bot proves the climb and every gem (~20 s)
     godot --headless --path . -s res://tests/profile_checks.gd   # saves, records, bad files
+    godot --headless --path . -s res://tests/menu_checks.gd      # title, reset, settings persist, pause, fits 640x360

@@ -32,8 +32,7 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_fullscreen"):
-		var full := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		Settings.set_fullscreen(not Settings.fullscreen)  # remembered, and the settings menu follows
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("debug_report"):
 		get_viewport().set_input_as_handled()

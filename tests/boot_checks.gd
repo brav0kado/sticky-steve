@@ -44,7 +44,8 @@ func _run() -> void:
 	if prof:
 		prof.path = "user://test_boot_profile.json"
 		prof.load_profile()
-	var packed := load(ProjectSettings.get_setting("application/run/main_scene")) as PackedScene
+	_check(ProjectSettings.get_setting("application/run/main_scene") == "res://scenes/title.tscn", "the game boots to the title")
+	var packed := load("res://scenes/main.tscn") as PackedScene
 	_check(packed != null, "main scene loads")
 	if packed:
 		change_scene_to_packed(packed)

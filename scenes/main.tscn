@@ -1,10 +1,11 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/tower.tscn" id="2"]
 [ext_resource type="PackedScene" path="res://scenes/steve.tscn" id="3"]
 [ext_resource type="Script" path="res://scripts/game_camera.gd" id="4"]
 [ext_resource type="Script" path="res://scripts/hud.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/pause_menu.gd" id="6"]
 
 [sub_resource type="Curve" id="dust_scale"]
 _data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.5), 0.0, 0.0, 0, 0]
@@ -59,3 +60,6 @@ target_path = NodePath("../Steve")
 
 [node name="HUD" type="CanvasLayer" parent="."]
 script = ExtResource("5")
+
+[node name="Pause" type="CanvasLayer" parent="."]
+script = ExtResource("6")

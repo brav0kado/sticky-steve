@@ -39,6 +39,7 @@ signal bounced(block: Block)
 signal clutch_save(fall: float)
 signal fell(px: float)
 signal streak_broken(streak: int)
+signal plant_refused(cooldown_left: float)  ## F pressed when planting isn't possible
 
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 
@@ -211,6 +212,9 @@ func tick(delta: float) -> void:
 		_respawn_requested = false
 		if state != State.PLANT:
 			respawn()
+	# Say why F did nothing (cooldown, or in the air): a dead button reads as a bug.
+	if _plant_requested and state != State.PLANT and (cooldown > 0.0 or is_airborne()):
+		plant_refused.emit(cooldown)
 	match state:
 		State.GROUND: _ground(delta)
 		State.CHARGE, State.CLING_CHARGE: _charge(delta)

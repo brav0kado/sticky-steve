@@ -78,6 +78,7 @@ func _ready() -> void:
 	steve.respawned.connect(func() -> void:
 		Sfx.play("respawn", 1.0, -4.0)
 		camera.reset_physics_interpolation())
+	steve.plant_refused.connect(_on_plant_refused)
 	summit.body_entered.connect(_on_summit)
 	if _zones.size() > 0:
 		hud.banner("%d  %s" % [_zones[0].index, _zones[0].title])
@@ -86,6 +87,8 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _won and event.is_action_pressed("ui_accept"):
 		get_tree().reload_current_scene()
+	elif _won and event.is_action_pressed("ui_cancel"):
+		get_tree().change_scene_to_file("res://scenes/title.tscn")
 
 
 func _process(_delta: float) -> void:
@@ -179,6 +182,12 @@ func _on_gem(gem: Gem) -> void:
 	hitstop(0.04)
 
 
+func _on_plant_refused(cooldown_left: float) -> void:
+	var why := "flag in %ds" % ceili(cooldown_left) if cooldown_left > 0.0 else "land to plant"
+	popup(why, steve.global_position + Vector2(0, -34), 13)
+	Sfx.play("charge_tick", 0.5, -6.0)
+
+
 func _on_planted(base: Vector2, faces_right: bool) -> void:
 	# Planting moves the checkpoint, so only the newest flag stands.
 	for old in flags.get_children():
@@ -203,6 +212,7 @@ func _on_summit(body: Node2D) -> void:
 	if body != steve or _won:
 		return
 	_won = true
+	$Pause.blocked = true  # the run is over: Esc means "to the title" on the card
 	Sfx.play("summit")
 	var t: float = hud.elapsed
 	var s: Dictionary = steve.stats

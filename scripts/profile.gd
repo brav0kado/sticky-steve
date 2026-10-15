@@ -54,6 +54,12 @@ func save() -> void:
 		push_error("Profile: cannot replace %s (%s)" % [path, error_string(err)])
 
 
+## Wipe all progress (title screen, after a second press).
+func reset() -> void:
+	data = defaults()
+	save()
+
+
 func has_gem(id: String) -> bool:
 	return id in data.gems
 

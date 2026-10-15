@@ -23,6 +23,7 @@ func _ready() -> void:
 		_streams[n] = s
 	for i in POOL:
 		var p := AudioStreamPlayer.new()
+		p.bus = &"SFX"  # its own volume in Settings
 		add_child(p)
 		_pool.append(p)
 

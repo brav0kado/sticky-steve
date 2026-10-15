@@ -12,7 +12,7 @@ config_version=5
 
 config/name="Sticky Steve"
 config/description="Charge, jump, stick. Reach the top in the coolest way possible."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/title.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -21,6 +21,7 @@ config/icon="res://icon.svg"
 Debug="*res://scripts/debug.gd"
 Sfx="*res://scripts/sfx.gd"
 Profile="*res://scripts/profile.gd"
+Settings="*res://scripts/settings.gd"
 
 [debug]
 

@@ -178,13 +178,13 @@ func show_summit(rank: String, checks: Array, records: Array) -> void:
 	lines.append("")
 	lines.append("%d jumps   %d perfect   best streak %d" % [s.jumps, s.perfect, s.best_streak])
 	lines.append("%d saves   %d edge landings   %d m fallen" % [s.saves, s.edges, roundi(s.fallen_px / PX_PER_M)])
-	lines.append("Enter: climb again")
+	lines.append("Enter: climb again     Esc: title")
 	_card.text = "\n".join(lines)
 	_panel.show()
 
 
 static func clock(t: float) -> String:
-	return "%d:%02d.%d" % [int(t) / 60, int(t) % 60, int(t * 10.0) % 10]
+	return UI.clock(t)
 
 
 func _label(pos: Vector2) -> Label:
