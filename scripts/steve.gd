@@ -22,9 +22,9 @@ signal respawned
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 
 @export_group("Ground")
-@export var walk_speed := 70.0
+@export var walk_speed := 105.0
 @export_group("Jump")
-@export var charge_time := 0.6  ## seconds to full charge; a full charge releases by itself
+@export var charge_time := 0.9  ## seconds to full charge; a full charge releases by itself
 @export var jump_v_min := 170.0
 @export var jump_v_max := 430.0
 @export var jump_vx := 115.0
@@ -47,6 +47,9 @@ enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 ## facing right = flip. walk_right is the exception: drawn facing right, mirrored for walking left.
 const ART_FACES_LEFT := true
 const DRAWN_FACING_RIGHT := [&"walk_right"]
+## walk_right's 3 frames at 10 fps match this pace; faster walking plays them faster so the feet
+## don't slide.
+const WALK_ANIM_PACE := 70.0
 const HAND_DATA := "res://art/flag/plant_flag_hand.json"
 ## The planting performance: [animation, times played]. The spin plays twice: a half-turn each.
 const PLANT_SEQUENCE := [["raise_pole", 1], ["spin_pole", 2], ["plant_pole", 1]]
@@ -437,6 +440,7 @@ func _animate() -> void:
 				sprite.play("jump_stop")
 			elif sprite.animation != &"jump_stop" or not sprite.is_playing() or velocity.y > 200.0:
 				_play("fall")
+	sprite.speed_scale = absf(velocity.x) / WALK_ANIM_PACE if sprite.animation == &"walk_right" else 1.0
 	var drawn_left := ART_FACES_LEFT and not sprite.animation in DRAWN_FACING_RIGHT
 	sprite.flip_h = (facing > 0.0) == drawn_left
 

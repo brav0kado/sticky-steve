@@ -52,6 +52,8 @@ func _run() -> void:
 	for i in 4:
 		_step()
 	_check(steve.sprite.animation == &"walk_right" and not steve.sprite.flip_h, "walking right plays walk_right as drawn")
+	_check(absf(steve.velocity.x - steve.walk_speed) < 0.01, "walks at walk_speed (%.0f)" % steve.velocity.x)
+	_check(is_equal_approx(steve.sprite.speed_scale, steve.walk_speed / 70.0), "walk cycle speeds up with the walk (no foot sliding)")
 	steve.bot = {"dir": 0.0, "jump": false}
 	_step()
 	_check(steve.sprite.animation == &"idle" and steve.sprite.flip_h, "stopping after walking right: idle faces right (flipped)")
