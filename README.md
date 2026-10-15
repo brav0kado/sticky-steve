@@ -3,9 +3,9 @@
 A 2D Jump King-style climber in Godot 4.7. Steve is a stick figure with one goal: reach the top,
 in the coolest way possible. Charge the jump, commit, land it (or don't).
 
-**Status:** greybox prototype. A 1,130 px test tower (16 route steps, two sticky walls, a summit)
-with the full core: charged jump, slow air control, wall bounce, the wall slap, flag checkpoints
-with the spinning pole, the zoom camera, impact juice and sound. Greybox blocks, default font.
+**Status:** revamped greybox (2026-10-16). A 2,850 px tower in three zones (32 route steps, 8
+gems), forgiving movement, bounce pads and crumble ledges, streaks, saves, bests and ranks.
+Greybox blocks, default font.
 
 ## Running
 
@@ -35,28 +35,42 @@ before playing. Symptom if you skip it: `Unable to open file: res://.godot/impor
 
 ## How it plays (the rules the tests hold)
 
-- **Jump:** hold to charge through three stages of 1 s each (each stage's animation loops; a
-  meter over his head with stage ticks), let go to jump. More charge = higher, up to ~128 px.
-  At full charge he holds (hovers on stage 3) as long as you like: no auto-release. **C** (pad B)
-  cancels the charge. The direction held at release sets the launch. Charging stops walking.
-- **Perfect release:** the moment the charge fills, the bar flashes cream (with a high tick) for
-  0.15 s. Let go inside that flash: a full jump plus ~12% height, a sparkle that travels with
-  Steve and a "ting". Hover past it and it's a plain full jump.
-- **Edge landing:** land with 3 px or less of foot on a ledge and time drops to a quarter for
-  half a second.
-- **Air control:** slow (an acceleration): you can nudge a jump, not reverse it.
-- **Walls:** a plain wall bounces Steve back. A **sticky** wall (studded) can be slapped once
-  per airtime: hold toward it when you hit it, he hangs there, then charge a jump away from it.
-  Landing restores the slap. Push away without jumping to let go.
-- **Flags:** F on solid ground plays the plant (pole spins in his hand, impact on the plant).
-  The flag is the checkpoint; landing below it sends him back to it; R goes back any time.
-  Unlimited flags, 20 s cooldown (top-right meter).
-- **Camera:** locked to the tower's centre, follows vertically; zooms out by the jump's charge,
-  never zooms in mid-air, widens on fast falls, eases back to exactly 1.0 after landing.
+**Movement**
+- **Jump:** hold to charge through three stages (0.3 s each; each stage's animation loops, a meter
+  over his head with stage ticks), let go to jump: up to ~129 px. At full charge he holds (hovers)
+  until you let go: no auto-release. **C** (pad B) cancels. The direction held at release sets the
+  launch; charging stops walking.
+- **Perfect release:** the moment the charge fills, the bar flashes cream with a high tick for
+  0.12 s. Let go in the flash: full jump + ~12% height, sparkle, "ting". Perfects back to back
+  build a **streak** (PERFECT x2, x3, rising pitch); a full charge released late breaks it.
+- **Forgiveness:** hold jump while landing and the charge starts on the landing frame; gravity
+  halves at the top of the arc (a beat to steer) and is heavier on the way down; clipping a
+  ceiling corner by up to 4 px slides him round it.
+- **Air control:** an acceleration (nudge yes, reverse ~0.9 s).
+- **Walls:** plain walls bounce him back. **Sticky** (studded) walls: hold toward one on contact
+  to slap on and hang; once per airtime; charge a jump away, push away to let go, or C to cancel a
+  wall charge. A slap that catches a long fall is a **SAVE!**
+- **Bounce pads** (zigzag top) fling him ~200 px up and give the slap back. **Crumble** ledges
+  (cracked) shake once stood on, drop after 1.2 s and regrow 3 s later.
+- **Edge landings** (3 px of foot or less) slow time to 25% for half a second: "close!".
 
-Tuning lives in the inspector: `scenes/steve.tscn` (jump/air/flag numbers) and the Camera node in
-`scenes/main.tscn` (zoom numbers). The tower is `scenes/tower.tscn`: drag Blocks around in the
-editor. Keep `route_step` in order: `tests/route_checks.gd` proves every step can be reached.
+**Progress**
+- **Flags:** F on solid ground plants one (pole spins in his hand); it's the checkpoint; landing
+  below it sends him back; R goes back any time. Unlimited, 20 s cooldown.
+- **Zones:** THE YARD, STICKY HEIGHTS, THE SPIRE. Crossing into one shows its banner and your split
+  against your best split.
+- **Gems:** 8 off the main route, each asking for something (a perfect jump, a bounce, a crumble
+  grab, an edge landing). Found ones draw hollow on later runs.
+- **Bests:** a dashed BEST line at your best height (NEW BEST HEIGHT when you pass it), best time,
+  best splits, best streak, all gems ever found: saved in `user://profile.json`.
+- **Summit card:** rank D to S from four checks (under par, no falls, all gems, a 3-perfect
+  streak), so it always says what would rank higher.
+- Falls say how far ("-34 m").
+
+Tuning lives in the inspector: `scenes/steve.tscn` (all movement numbers), the Camera node in
+`scenes/main.tscn` (zoom), each Block (bounce speed, crumble timing) and Main's `par_seconds`.
+The tower is `scenes/tower.tscn`: drag Blocks, Gems and Zones in the editor. Keep `route_step`
+in order: `tests/route_checks.gd` proves the climb and every gem with real jumps.
 
 ## Bug reports (playtest loop)
 
@@ -119,6 +133,8 @@ tile art in `art/world/` and add background nodes to group `background`: the tes
 | `scripts/game_camera.gd` | follow + zoom camera |
 | `scripts/hud.gd` | timer, height, flag meter, summit card |
 | `scripts/sfx.gd` | autoload `Sfx`: sounds from `audio/sfx/` (Kenney, CC0) |
+| `scripts/profile.gd` | autoload `Profile`: bests and gems between runs (`user://profile.json`) |
+| `scripts/gem.gd`, `scripts/zone.gd` | collectibles; zone start lines (banner + split) |
 | `scripts/debug.gd` | autoload `Debug`: F12 report, F11 fullscreen |
 | `scripts/nyx8.gd` | `Nyx8`: the palette as constants, for anything drawn in code |
 | `art/` | sprites + generated `*_frames.tres`; `art/source/` holds the .aseprite files |
@@ -132,4 +148,5 @@ Physics layers: 1 world, 2 player, 3 sticky, 4 hazard.
     godot --headless --path . -s res://tests/boot_checks.gd      # Steve's animations vs tags, input map, main scene, report info
     godot --headless --path . -s res://tests/palette_checks.gd   # every art pixel and scene colour is NYX8
     godot --headless --path . -s res://tests/steve_checks.gd     # every movement rule, frame by frame, plus the camera
-    godot --headless --path . -s res://tests/route_checks.gd     # a bot proves each tower step is reachable
+    godot --headless --path . -s res://tests/route_checks.gd     # a bot proves the climb and every gem (~20 s)
+    godot --headless --path . -s res://tests/profile_checks.gd   # saves, records, bad files

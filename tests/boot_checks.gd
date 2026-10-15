@@ -38,6 +38,12 @@ func _run() -> void:
 	for a: String in ACTIONS:
 		_check(InputMap.has_action(a) and not InputMap.action_get_events(a).is_empty(), "input %s bound" % a)
 
+	# The main scene saves the profile on exit: point it at a test file, never the player's.
+	var prof := root.get_node_or_null("Profile")
+	_check(prof != null, "Profile autoload present")
+	if prof:
+		prof.path = "user://test_boot_profile.json"
+		prof.load_profile()
 	var packed := load(ProjectSettings.get_setting("application/run/main_scene")) as PackedScene
 	_check(packed != null, "main scene loads")
 	if packed:
@@ -45,6 +51,10 @@ func _run() -> void:
 		await process_frame
 		await process_frame
 		_check(get_first_node_in_group("player") != null, "main scene has a player")
+		var main := current_scene
+		_check(main._gems_total >= 6 and main._zones.size() >= 3, "tower has gems (%d) and zones (%d)" % [main._gems_total, main._zones.size()])
+		main.popup("test", Vector2.ZERO, 12)
+		_check(main.get_node("HUD").popup_count() == 1, "popups appear")
 		var debug := root.get_node_or_null("Debug")
 		_check(debug != null, "Debug autoload present")
 		if debug:

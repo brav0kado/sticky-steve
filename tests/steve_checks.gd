@@ -12,6 +12,7 @@ var _fails := 0
 var arena: Node2D
 var steve: CharacterBody2D
 var cam: Camera2D
+var crumble: StaticBody2D
 var _events: Array[String] = []
 
 
@@ -30,7 +31,10 @@ func _run() -> void:
 		apexes.append(_apex_for(c))
 	_check(apexes[0] > 4.0, "a tap still jumps (%.1f px)" % apexes[0])
 	_check(apexes[0] < apexes[1] and apexes[1] < apexes[2] and apexes[2] < apexes[3], "apex rises with charge %s" % [apexes])
-	var full: float = steve.jump_v_max * steve.jump_v_max / (2.0 * steve.gravity)
+	# Apex hang: normal gravity until |vy| < apex_band, then apex_gravity times it.
+	var vb: float = steve.apex_band
+	var full: float = (steve.jump_v_max * steve.jump_v_max - vb * vb) / (2.0 * steve.gravity) \
+			+ vb * vb / (2.0 * steve.gravity * steve.apex_gravity)
 	_check(absf(apexes[3] - full) < 6.0, "full charge apex %.1f ~ %.1f" % [apexes[3], full])
 
 	# Perfect release: let go within perfect_window of the charge filling = full jump + bonus.
@@ -206,10 +210,116 @@ func _run() -> void:
 	_run_until(func() -> bool: return "respawned" in _events, 120)
 	_check("respawned" in _events and steve.global_position.distance_to(flag_at) < 0.5, "landing below the flag respawns at it")
 
+	_forgiveness_checks()
+	_surface_checks()
+	_streak_checks()
 	_camera_checks()
 
 	print("STEVE pass" if _fails == 0 else "STEVE fail (%d)" % _fails)
 	quit(1 if _fails else 0)
+
+
+## Celeste-style forgiveness: buffered charge, the hang at the apex, the heavier fall, corners.
+func _forgiveness_checks() -> void:
+	# Holding jump as he lands starts the charge on the landing frame (no dead land-lock).
+	_reset(Vector2(0, -60))
+	steve.state = 2  # AIR, a short drop
+	steve.bot = {"dir": 0.0, "jump": true}
+	_run_until(func() -> bool: return steve.state != 2, 120)
+	_step()
+	_check(steve.state == 1, "jump held while landing: the charge starts at once (state %d)" % steve.state)
+	steve.bot = {"dir": 0.0, "jump": false}
+	_run_until(func() -> bool: return not steve.is_airborne() and steve.state in [0, 5], 200)
+
+	# Gravity: half near the apex, more on the way down.
+	_reset(Vector2(0, 0))
+	_charge_and_release(1.0, 0.0)
+	var dv_rise := 0.0
+	var dv_apex := 0.0
+	var dv_fall := 0.0
+	for i in 200:
+		var v0: float = steve.velocity.y
+		_step()
+		if not steve.is_airborne():
+			break
+		var dv: float = steve.velocity.y - v0
+		if v0 < -100.0:
+			dv_rise = dv
+		elif absf(v0) < steve.apex_band * 0.8:
+			dv_apex = dv
+		elif v0 > 100.0 and v0 < steve.max_fall - 30.0:
+			dv_fall = dv
+	_check(dv_apex > 0.0 and dv_apex < dv_rise * 0.6, "apex hang: gravity eases at the top (%.1f vs %.1f per tick)" % [dv_apex, dv_rise])
+	_check(dv_fall > dv_rise * 1.15, "falling is heavier than rising (%.1f vs %.1f per tick)" % [dv_fall, dv_rise])
+
+	# Corner correction: clipping a ceiling corner by 2 px slides him round it, the jump goes on.
+	_reset(Vector2(98, 0))  # his right edge (x+4) is 2 px under the ceiling block's left corner
+	var y0 := steve.global_position.y
+	_charge_and_release(1.0, 0.0)
+	var top := y0
+	for i in 120:
+		_step()
+		top = minf(top, steve.global_position.y)
+	# Blocked, he would stop at ~74 px (head on the ceiling); corrected, he keeps the full jump.
+	_check(y0 - top > 110.0 and steve.global_position.x < 97.0, "clipped corner: nudged round it, rose %.0f px" % (y0 - top))
+	_run_until(func() -> bool: return not steve.is_airborne(), 200)
+
+
+## Bounce pads, crumbling ledges, the save.
+func _surface_checks() -> void:
+	# Bouncy: landing on the pad flings him up at bounce_speed and refreshes the slap.
+	_reset(Vector2(255, -80))
+	steve.slap_ready = false
+	steve.state = 2
+	var bounced := _run_until(func() -> bool: return "bounced" in _events, 120)
+	_check(bounced and steve.is_airborne() and steve.velocity.y < -500.0, "pad flings him up (vy %.0f)" % steve.velocity.y)
+	_check(steve.slap_ready, "a bounce refreshes the slap")
+	_run_until(func() -> bool: return not steve.is_airborne() and "landed" in _events, 300)
+
+	# Crumble: stand on it, it shakes for crumble_delay, then he drops; it comes back later.
+	_reset(Vector2(360, -100))
+	steve.state = 2
+	_run_until(func() -> bool: return steve.state in [0, 5], 30)
+	_check(steve.last_floor == crumble, "standing on the crumble ledge")
+	var drop_tick := -1
+	for i in roundi((crumble.crumble_delay + 0.5) / DT):
+		_step()
+		if drop_tick < 0 and steve.is_airborne():
+			drop_tick = i
+	_check(drop_tick > 0 and absf(drop_tick * DT - crumble.crumble_delay) < 0.1, "the ledge drops after %.1f s (%.2f)" % [crumble.crumble_delay, drop_tick * DT])
+	_run_until(func() -> bool: return not steve.is_airborne(), 200)
+	_reset(Vector2(0, 0))  # out of the way so it may regrow
+	for i in roundi((crumble.regrow_delay + 0.3) / DT):
+		_step()
+	_check(crumble.is_solid_now() and crumble.visible, "the crumble ledge regrows")
+
+	# The save: a slap that catches a real fall.
+	_reset(Vector2(150, -300))
+	steve.state = 2
+	steve.bot = {"dir": 1.0, "jump": false}
+	_run_until(func() -> bool: return steve.state == 3, 120)
+	_check("clutch_save" in _events, "slapping a wall mid-fall counts as a SAVE")
+	steve.bot = {"dir": -1.0, "jump": false}
+	_run_until(func() -> bool: return not steve.is_airborne(), 200)
+
+
+## Streak: back-to-back perfects count up; a short jump doesn't touch it; a late full one breaks it.
+func _streak_checks() -> void:
+	_reset(Vector2(0, 0))
+	steve.stats.streak = 0
+	for k in 2:
+		steve.bot = {"dir": 0.0, "jump": true}
+		_run_until(func() -> bool: return steve.charge >= 1.0, 120)
+		steve.bot = {"dir": 0.0, "jump": false}
+		_step()
+		_run_until(func() -> bool: return not steve.is_airborne() and steve.state == 0, 200)
+	_check(steve.stats.streak == 2 and "perfect2" in _events, "two perfects in a row: streak 2")
+	_charge_and_release(0.5, 0.0)
+	_run_until(func() -> bool: return not steve.is_airborne() and steve.state == 0, 200)
+	_check(steve.stats.streak == 2, "a short jump leaves the streak alone")
+	_charge_and_release(1.0, 0.0)  # held past the flash
+	_run_until(func() -> bool: return not steve.is_airborne() and steve.state == 0, 200)
+	_check(steve.stats.streak == 0 and "streak_broken" in _events, "a late full jump breaks the streak")
 
 
 ## The camera spec: widens more for a bigger jump, never zooms in mid-air, rests at exactly 1.0.
@@ -248,21 +358,28 @@ func _build_arena() -> void:
 	_block(Vector2(-220, -400), Vector2(20, 400), 0)  # plain wall, face at x = -200
 	_block(Vector2(200, -400), Vector2(20, 400), 1)  # sticky wall, face at x = 200
 	_block(Vector2(-100, -80), Vector2(80, 16), 0)  # ledge for the flag
+	_block(Vector2(240, -12), Vector2(30, 12), 2)  # bouncy pad, top at y = -12
+	crumble = _block(Vector2(330, -100), Vector2(60, 16), 3)  # crumble ledge, top at y = -100
+	_block(Vector2(100, -110), Vector2(40, 16), 0)  # ceiling, bottom at y = -94: left corner at x = 100
 	steve = (load(STEVE) as PackedScene).instantiate()
 	steve.set_physics_process(false)  # stepped by hand
 	arena.add_child(steve)
-	for sig in ["bonked", "slapped", "planted", "flag_ready", "respawned", "landed"]:
+	for sig in ["bonked", "slapped", "planted", "flag_ready", "respawned", "landed", "clutch_save", "fell", "streak_broken"]:
 		steve.connect(sig, func(_a = null, _b = null) -> void: _events.append(sig))
 	steve.edge_landed.connect(func(_o: float) -> void: _events.append("edge"))
+	steve.bounced.connect(func(_b: Node) -> void: _events.append("bounced"))
+	steve.perfect_release.connect(func(n: int) -> void: _events.append("perfect%d" % n))
 
 
-func _block(pos: Vector2, size: Vector2, surface: int) -> void:
+func _block(pos: Vector2, size: Vector2, surface: int) -> StaticBody2D:
 	var b := StaticBody2D.new()
 	b.set_script(load(BLOCK))
 	b.position = pos
 	b.size = size
 	b.surface = surface
 	arena.add_child(b)
+	b.set_physics_process(false)  # stepped with Steve
+	return b
 
 
 func _reset(pos: Vector2) -> void:
@@ -274,6 +391,7 @@ func _reset(pos: Vector2) -> void:
 	steve.cooldown = 0.0
 	steve.has_checkpoint = false
 	steve.bot = {"dir": 0.0, "jump": false}
+	crumble._set_gone(false)
 	_events.clear()
 	for i in 3:
 		_step()
@@ -314,6 +432,7 @@ func _run_until(cond: Callable, max_ticks: int) -> bool:
 
 func _step() -> void:
 	steve.tick(DT)
+	crumble.tick(DT)
 	if cam:
 		cam.tick(DT)
 

@@ -15,6 +15,11 @@ extends CharacterBody2D
 ## (only while charging) shows the stages and turns cream for the perfect window.
 ## Edge landing: landing with only a sliver of his feet on the ledge fires edge_landed (slow-mo).
 ##
+## Forgiveness (Celeste's tricks, adapted): a charge can start during a normal landing (buffer);
+## gravity halves near the apex (a beat to steer at the top) and rises on the way down (snappy, not
+## floaty); clipping a ceiling corner by a few px nudges him round it instead of killing the jump.
+## Surfaces: BOUNCY pads fling him up and refresh the slap; CRUMBLE ledges fall away after a beat.
+##
 ## All movement runs from tick(delta), so tests step him deterministically without the engine
 ## clock. `bot` replaces player input when non-empty (tests only): {"dir": -1..1, "jump": bool}.
 
@@ -26,33 +31,42 @@ signal charge_stage(stage: int)
 signal planted(flag_base: Vector2, faces_right: bool)
 signal flag_ready
 signal respawned
-signal perfect_release
+signal perfect_release(streak: int)
 signal charge_full
 signal charge_cancelled
 signal edge_landed(overlap: float)
+signal bounced(block: Block)
+signal clutch_save(fall: float)
+signal fell(px: float)
+signal streak_broken(streak: int)
 
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 
 @export_group("Ground")
 @export var walk_speed := 105.0
 @export_group("Jump")
-@export var stage_seconds := 1.0  ## each of the three charge stages; full charge = 3x this
+@export var stage_seconds := 0.3  ## each of the three charge stages; full charge = 3x this
 @export var jump_v_min := 170.0
 @export var jump_v_max := 480.0  ## full charge: ~128 px (6 Steves)
 @export var jump_vx := 115.0
 @export var gravity := 900.0
-@export var max_fall := 520.0
+@export var apex_band := 45.0  ## |vy| below this counts as the top of the arc
+@export var apex_gravity := 0.5  ## gravity multiplier there: a beat to steer
+@export var fall_gravity := 1.25  ## gravity multiplier on the way down: drops feel heavy, not floaty
+@export var max_fall := 560.0
+@export var corner_px := 4  ## clip a ceiling corner by this much or less and he slides round it
 @export_group("Perfect release")
-@export var perfect_window := 0.15  ## seconds after the charge fills: ~9 frames
+@export var perfect_window := 0.12  ## seconds after the charge fills: ~7 frames
 @export var perfect_bonus := 1.06  ## launch speed multiplier over a full jump: ~12% more height
 @export_group("Air")
 @export var air_speed := 115.0
-@export var air_accel := 180.0  ## px/s²: a full reversal takes ~1.3 s, so the launch still matters
+@export var air_accel := 260.0  ## px/s²: nudges land quickly, a full reversal still takes ~0.9 s
 @export var wall_bounce := 0.55
 @export_group("Landing")
 @export var hard_fall := 160.0  ## px fallen from the apex that counts as a hard landing
-@export var land_lock := 0.1
-@export var hard_land_lock := 0.35
+@export var land_lock := 0.05  ## a charge started during this skips it (buffer)
+@export var hard_land_lock := 0.22  ## hard landings keep their stagger: weight
+@export var clutch_fall := 96.0  ## slapping a wall after falling this far is a SAVE
 @export var fall_stat := 64.0  ## landing this far below the take-off counts as a fall (stats)
 @export var edge_px := 3.0  ## landing with this much foot (or less) on the ledge is an edge landing
 @export_group("Flag")
@@ -88,7 +102,8 @@ var bot: Dictionary = {}
 var charge_time: float:  ## seconds from empty to full
 	get:
 		return stage_seconds * 3.0
-var stats := {"jumps": 0, "falls": 0, "flags": 0, "perfect": 0, "edges": 0}
+var stats := {"jumps": 0, "falls": 0, "flags": 0, "perfect": 0, "edges": 0, "saves": 0,
+		"streak": 0, "best_streak": 0, "fallen_px": 0.0}
 
 var _start := Vector2.ZERO
 var _apex_y := 0.0
@@ -99,6 +114,7 @@ var _plant_requested := false
 var _respawn_requested := false
 var _cancel_requested := false
 var _full_t := 0.0  # seconds spent at full charge (the perfect window is the start of this)
+var _hard := false  # the current landing was a hard one (no buffered charge out of it)
 var _plant_t := 0.0
 var _plant_frames: Array = []  # [[anim, frame], ...] one entry per 1/fps of the performance
 var _impact_done := false
@@ -259,11 +275,17 @@ func _air(delta: float) -> void:
 	var d := _dir()
 	if d != 0.0:
 		velocity.x = move_toward(velocity.x, signf(d) * air_speed, air_accel * delta)
-	velocity.y = minf(velocity.y + gravity * delta, max_fall)
+	velocity.y = minf(velocity.y + gravity * _gravity_scale() * delta, max_fall)
 	var before := velocity
 	move_and_slide()
 	_apex_y = minf(_apex_y, global_position.y)
+	if is_on_ceiling() and before.y < 0.0 and _round_corner(before, delta):
+		return
 	if is_on_floor():
+		var floor_block := _floor_collider() as Block
+		if floor_block and floor_block.surface == Block.Surface.BOUNCY:
+			_bounce(floor_block)
+			return
 		_land()
 		return
 	for i in get_slide_collision_count():
@@ -276,7 +298,9 @@ func _air(delta: float) -> void:
 			_cling(n.x, block)
 			return
 		if absf(before.x) > 1.0:
-			velocity.x = -before.x * wall_bounce
+			var spring: bool = block != null and block.surface == Block.Surface.BOUNCY
+			# A bouncy wall throws him back harder than it was hit (min 160 px/s): a ricochet.
+			velocity.x = -signf(before.x) * maxf(absf(before.x), 160.0) if spring else -before.x * wall_bounce
 			bonked.emit()
 		break
 
@@ -297,6 +321,9 @@ func _land_tick(delta: float) -> void:
 	_fall_and_slide(delta)
 	if not is_on_floor():
 		_leave_ground()
+		return
+	if _jump_held() and not _hard and not _respawn_pending:
+		_begin_charge(State.CHARGE)  # buffered: the charge starts on the landing frame
 		return
 	if _lock <= 0.0:
 		state = State.GROUND
@@ -334,9 +361,15 @@ func _launch(dir: float) -> void:
 	if dir != 0.0:
 		facing = dir
 	jumped.emit(charge)
+	# Streak = full charges released in the flash, back to back. Shorter jumps don't count either
+	# way; a full charge held past the flash breaks it.
 	if perfect:
 		stats.perfect += 1
-		perfect_release.emit()
+		stats.streak += 1
+		stats.best_streak = maxi(stats.best_streak, stats.streak)
+		perfect_release.emit(stats.streak)
+	elif charge >= 1.0:
+		_break_streak()
 	charge = 0.0
 	state = State.AIR
 	cling_block = null
@@ -359,7 +392,26 @@ func _leave_ground() -> void:
 	_takeoff_y = global_position.y
 
 
+func _bounce(block: Block) -> void:
+	velocity.y = -block.bounce_speed
+	_apex_y = global_position.y
+	slap_ready = true  # a pad refreshes the slap: pad, wall, pad chains
+	bounced.emit(block)
+	sprite.play("jump")
+	_squash(Vector2(1.3, 0.75))
+
+
+func _break_streak() -> void:
+	if stats.streak > 0:
+		streak_broken.emit(stats.streak)
+	stats.streak = 0
+
+
 func _cling(normal_x: float, block: Block) -> void:
+	var fall := global_position.y - _apex_y
+	if fall >= clutch_fall:
+		stats.saves += 1
+		clutch_save.emit(fall)
 	state = State.CLING
 	wall_normal = normal_x
 	cling_block = block
@@ -373,13 +425,20 @@ func _cling(normal_x: float, block: Block) -> void:
 func _land() -> void:
 	var fall := global_position.y - _apex_y
 	var hard := fall >= hard_fall
+	_hard = hard
 	last_floor = _floor_collider()
 	velocity = Vector2.ZERO
 	slap_ready = true
 	state = State.LAND
 	_lock = hard_land_lock if hard else land_lock
-	if global_position.y - _takeoff_y >= fall_stat:
+	var lost := global_position.y - _takeoff_y
+	if lost >= fall_stat:
 		stats.falls += 1
+		stats.fallen_px += lost
+		_break_streak()
+		fell.emit(lost)
+	if last_floor is Block:
+		last_floor.stood_on()
 	_respawn_pending = has_checkpoint and global_position.y > checkpoint.y + respawn_margin
 	sprite.play("land")
 	_squash(Vector2(1.3, 0.75) if hard else Vector2(1.15, 0.88))
@@ -445,6 +504,26 @@ func _foot_overlap() -> float:
 	var left := maxf(global_position.x - half, block.global_position.x)
 	var right := minf(global_position.x + half, block.global_position.x + block.size.x)
 	return maxf(right - left, 0.0)
+
+
+func _gravity_scale() -> float:
+	if absf(velocity.y) < apex_band:
+		return apex_gravity
+	return fall_gravity if velocity.y > 0.0 else 1.0
+
+
+## Rising into a ceiling corner he only clipped: shift him up to corner_px sideways if that frees
+## him, and give the jump its speed back. Returns true if it corrected.
+func _round_corner(before: Vector2, delta: float) -> bool:
+	var up := Vector2(0.0, before.y * delta)
+	for px in range(1, corner_px + 1):
+		for side in [-1.0, 1.0]:
+			var shift := Vector2(side * px, 0.0)
+			if not test_move(global_transform.translated(shift), up):
+				global_position += shift
+				velocity.y = before.y
+				return true
+	return false
 
 
 func _floor_collider() -> Node:

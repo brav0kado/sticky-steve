@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 
 Debug="*res://scripts/debug.gd"
 Sfx="*res://scripts/sfx.gd"
+Profile="*res://scripts/profile.gd"
 
 [debug]
 

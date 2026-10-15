@@ -26,6 +26,8 @@ color = Color(0.6, 0.4588, 0.4667, 1)
 
 [node name="Tower" parent="." instance=ExtResource("2")]
 
+[node name="BestLine" type="Node2D" parent="."]
+
 [node name="Flags" type="Node2D" parent="."]
 
 [node name="Steve" parent="." instance=ExtResource("3")]
