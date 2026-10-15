@@ -11,7 +11,7 @@ const FLAG_BASE := Vector2(25, 31)  ## flag.png: pixel at the bottom of its pole
 @onready var hud: CanvasLayer = $HUD
 @onready var flags: Node2D = $Flags
 @onready var dust: CPUParticles2D = $Dust
-@onready var sparkle: CPUParticles2D = $Sparkle
+@onready var sparkle: CPUParticles2D = $Steve/Sparkle  ## local coords: the burst travels with him
 @onready var summit: Area2D = $Tower/Summit
 
 ## Edge-landing slow-mo: how slow, and for how long in real seconds.
@@ -34,6 +34,8 @@ func _ready() -> void:
 	steve.planted.connect(_on_planted)
 	steve.flag_ready.connect(func() -> void: Sfx.play("flag_ready", 1.0, -4.0))
 	steve.perfect_release.connect(_on_perfect)
+	steve.charge_full.connect(func() -> void: Sfx.play("charge_tick", 1.9, -2.0))  # "now!": the window opens
+	steve.charge_cancelled.connect(func() -> void: Sfx.play("charge_tick", 0.6, -6.0))
 	steve.edge_landed.connect(_on_edge)
 	steve.respawned.connect(func() -> void:
 		Sfx.play("respawn", 1.0, -4.0)
@@ -117,7 +119,6 @@ func slow_time(scale: float, seconds: float) -> void:
 
 func _on_perfect() -> void:
 	Sfx.play("perfect", 1.0, -2.0)
-	sparkle.global_position = steve.global_position + Vector2(0, -12)
 	sparkle.restart()
 	sparkle.emitting = true
 	camera.shake(1.5, 0.1)

@@ -43,10 +43,10 @@ func _ready() -> void:
 	_meter.add_child(_icon)
 	_hint = _label(Vector2.ZERO)
 	_hint.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
-	_hint.offset_top = -30
+	_hint.offset_top = -52
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_hint.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_hint.text = "Hold SPACE to charge, release to jump   A/D move   F plant flag   R back to flag"
+	_hint.text = "Hold SPACE to charge, let go to jump: on the cream flash = perfect\nC cancel   A/D move   F plant flag   R back to flag"
 	# The summit card sits on a solid panel: over the level its text was unreadable.
 	_panel = PanelContainer.new()
 	var box := StyleBoxFlat.new()

@@ -33,26 +33,25 @@ func _run() -> void:
 	var full: float = steve.jump_v_max * steve.jump_v_max / (2.0 * steve.gravity)
 	_check(absf(apexes[3] - full) < 6.0, "full charge apex %.1f ~ %.1f" % [apexes[3], full])
 
-	# Perfect release: inside the window = bonus launch speed; before it or a full auto-release = none.
-	var v_at := func(c: float) -> float: return lerpf(steve.jump_v_min, steve.jump_v_max, c)
-	for case in [[0.70, false], [(steve.perfect_from + steve.perfect_to) / 2.0, true], [1.0, false]]:
+	# Perfect release: let go within perfect_window of the charge filling = full jump + bonus.
+	# Before full, or after hovering past the window = no bonus.
+	var v_full: float = steve.jump_v_max
+	var window_ticks := int(steve.perfect_window / DT)
+	for case in [["before full", -10, false], ["as it fills", 2, true], ["hovered past", window_ticks + 6, false]]:
 		_reset(Vector2(0, 0))
 		var perfect_before: int = steve.stats.perfect
 		steve.bot = {"dir": 0.0, "jump": true}
-		var released := false
-		for i in 200:
-			var c_now: float = steve.charge
-			if c_now >= case[0] and not released:
-				steve.bot = {"dir": 0.0, "jump": false}
-				released = true
+		var full_at := roundi(steve.charge_time / DT)
+		for i in maxi(1, full_at + int(case[1])):
 			_step()
-			if steve.is_airborne():
-				var expect_v: float = v_at.call(c_now if case[0] < 1.0 else 1.0) * (steve.perfect_bonus if case[1] else 1.0)
-				var got_perfect: bool = steve.stats.perfect > perfect_before
-				_check(got_perfect == case[1], "release at %.2f: perfect=%s" % [case[0], case[1]])
-				_check(absf(-steve.velocity.y - expect_v) < 25.0, "release at %.2f: launch %.0f ~ %.0f" % [case[0], -steve.velocity.y, expect_v])
-				break
-	_check(steve.perfect_to < 1.0, "the window closes before full charge, so auto-release is never perfect")
+		var c_released: float = steve.charge
+		steve.bot = {"dir": 0.0, "jump": false}
+		_step()
+		var expect_v: float = lerpf(steve.jump_v_min, v_full, c_released) * (steve.perfect_bonus if case[2] else 1.0)
+		_check(steve.is_airborne(), "%s: released = jumped" % case[0])
+		_check((steve.stats.perfect > perfect_before) == case[2], "%s: perfect=%s" % [case[0], case[2]])
+		_check(absf(-steve.velocity.y - expect_v) < 25.0, "%s: launch %.0f ~ %.0f" % [case[0], -steve.velocity.y, expect_v])
+	_check(steve.perfect_bonus > 1.0, "a perfect jump beats a plain full jump")
 
 	# Edge landing: a sliver of foot on a ledge fires edge_landed; a centred landing doesn't.
 	for case in [[-102.0, true], [-60.0, false]]:  # ledge spans x -100..-20, Steve is 8 px wide
@@ -62,18 +61,33 @@ func _run() -> void:
 		_check(("edge" in _events) == case[1] and steve.last_floor != null and steve.global_position.y < -79.0,
 			"landing at x %.0f on the ledge: edge=%s" % [case[0], case[1]])
 
-	# A full charge releases by itself (Jump King), and charging stops walking.
+	# Stages: each lasts stage_seconds with its animation looping. Full charge hovers on stage 3
+	# with no auto-release; charging stops walking.
 	_reset(Vector2(0, 0))
 	steve.bot = {"dir": 1.0, "jump": true}
-	var launched_at := -1
-	for i in 120:
+	var stage_ticks := roundi(steve.stage_seconds / DT)
+	var seen := {}
+	for i in stage_ticks * 3 + 240:  # three stages, then 4 s of hovering
 		_step()
 		if i == 5:
 			_check(absf(steve.velocity.x) < 0.01, "charging stops walking")
-		if launched_at < 0 and steve.is_airborne():
-			launched_at = i
-	var expect := int(steve.charge_time / DT)
-	_check(absi(launched_at - expect) <= 2, "full charge auto-releases (tick %d ~ %d)" % [launched_at, expect])
+		if i == stage_ticks / 2:
+			seen[1] = steve.sprite.animation
+		if i == stage_ticks + stage_ticks / 2:
+			seen[2] = steve.sprite.animation
+		if i == stage_ticks * 2 + stage_ticks / 2:
+			seen[3] = steve.sprite.animation
+	_check(seen.get(1) == &"jump_charge_1" and seen.get(2) == &"jump_charge_2" and seen.get(3) == &"jump_charge_3",
+		"each stage lasts %.1f s with its own animation %s" % [steve.stage_seconds, seen])
+	_check(steve.state == 1 and steve.charge >= 1.0 and steve.sprite.animation == &"jump_charge_3" and steve.sprite.is_playing(),
+		"full charge hovers on stage 3, looping, no auto-release")
+
+	# Cancel drops the charge without jumping: back to standing, or back to hanging on a wall.
+	steve.request_cancel()
+	_step()
+	_check(steve.state == 0 and steve.charge == 0.0 and not steve.is_airborne(), "cancel on the ground: standing, no jump")
+	steve.bot = {"dir": 0.0, "jump": false}
+	_step()
 
 	# Walking uses walk_right (drawn facing right) mirrored for left; idle then faces the same way.
 	_reset(Vector2(0, 0))
@@ -119,6 +133,14 @@ func _run() -> void:
 	for i in 30:
 		_step()
 	_check(absf(steve.global_position.y - y_cling) < 0.5, "he hangs without sliding")
+	steve.bot = {"dir": 0.0, "jump": true}
+	for i in 20:
+		_step()
+	steve.request_cancel()
+	_step()
+	_check(steve.state == 3 and steve.charge == 0.0, "cancel on a wall: back to hanging")
+	steve.bot = {"dir": 0.0, "jump": false}
+	_step()
 	steve.bot = {"dir": 0.0, "jump": true}
 	for i in 15:
 		_step()
@@ -257,13 +279,14 @@ func _reset(pos: Vector2) -> void:
 		_step()
 
 
+## A full charge is held past the perfect window, so helpers never get the perfect bonus.
 func _charge_and_release(charge: float, dir: float) -> void:
 	steve.bot = {"dir": dir, "jump": true}
 	var ticks := maxi(1, roundi(charge * steve.charge_time / DT))
+	if charge >= 1.0:
+		ticks += ceili(steve.perfect_window / DT) + 2
 	for i in ticks:
 		_step()
-		if steve.is_airborne():
-			return  # full charge released itself
 	steve.bot = {"dir": dir, "jump": false}
 	_step()
 

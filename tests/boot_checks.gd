@@ -13,7 +13,7 @@ const PLANT := {"raise_pole": 3, "spin_pole": 5, "plant_pole": 2}
 const PLANT_ONE_SHOT := ["raise_pole", "plant_pole"]
 const HAND_JSON := "res://art/flag/plant_flag_hand.json"
 const INK := Color("08141e")  ## Steve's outline/limb colour: every hand point must be on it
-const ACTIONS := ["move_left", "move_right", "jump", "pause", "toggle_fullscreen", "debug_report", "plant_flag", "respawn"]
+const ACTIONS := ["move_left", "move_right", "jump", "pause", "toggle_fullscreen", "debug_report", "plant_flag", "respawn", "cancel_charge"]
 
 var _fails := 0
 

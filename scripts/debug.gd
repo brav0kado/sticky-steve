@@ -22,7 +22,7 @@ func _ready() -> void:
 	layer.layer = 100  # above any game UI
 	add_child(layer)
 	_toast = Label.new()
-	_toast.position = Vector2(8, 8)
+	_toast.position = Vector2(8, 36)  # under the HUD's timer line, not on top of it
 	_toast.add_theme_color_override("font_color", Nyx8.CREAM)
 	_toast.add_theme_color_override("font_outline_color", Nyx8.INK)
 	_toast.add_theme_constant_override("outline_size", 4)

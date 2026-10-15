@@ -7,9 +7,12 @@ extends CharacterBody2D
 ## it. Landing restores the slap. Planting a flag (20 s cooldown) sets the checkpoint; landing
 ## below it sends him back to it.
 ##
-## Perfect release: letting go while the charge is inside a window just short of full adds a
-## height bonus. A full charge auto-releases past the window, so perfect is always a choice. The
-## meter over his head (only while charging) shows the charge and marks the window.
+## Charging runs through three stages of stage_seconds each (each stage's animation loops). At
+## full charge he holds (hovers on stage 3) until released: there is no auto-release. Cancel
+## (C / pad B) drops the charge without jumping.
+## Perfect release: letting go within perfect_window seconds of the charge filling adds a height
+## bonus on top of a full jump. Hold longer and it's a plain full jump. The meter over his head
+## (only while charging) shows the stages and turns cream for the perfect window.
 ## Edge landing: landing with only a sliver of his feet on the ledge fires edge_landed (slow-mo).
 ##
 ## All movement runs from tick(delta), so tests step him deterministically without the engine
@@ -24,6 +27,8 @@ signal planted(flag_base: Vector2, faces_right: bool)
 signal flag_ready
 signal respawned
 signal perfect_release
+signal charge_full
+signal charge_cancelled
 signal edge_landed(overlap: float)
 
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
@@ -31,16 +36,15 @@ enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 @export_group("Ground")
 @export var walk_speed := 105.0
 @export_group("Jump")
-@export var charge_time := 0.9  ## seconds to full charge; a full charge releases by itself
+@export var stage_seconds := 1.0  ## each of the three charge stages; full charge = 3x this
 @export var jump_v_min := 170.0
 @export var jump_v_max := 480.0  ## full charge: ~128 px (6 Steves)
 @export var jump_vx := 115.0
 @export var gravity := 900.0
 @export var max_fall := 520.0
 @export_group("Perfect release")
-@export var perfect_from := 0.80  ## charge fraction where the window opens (0.72 s at 0.9 s charge)
-@export var perfect_to := 0.93  ## ...and closes: ~0.12 s, about 7 frames
-@export var perfect_bonus := 1.06  ## launch speed multiplier: ~12% more height
+@export var perfect_window := 0.15  ## seconds after the charge fills: ~9 frames
+@export var perfect_bonus := 1.06  ## launch speed multiplier over a full jump: ~12% more height
 @export_group("Air")
 @export var air_speed := 115.0
 @export var air_accel := 180.0  ## px/s²: a full reversal takes ~1.3 s, so the launch still matters
@@ -81,6 +85,9 @@ var has_checkpoint := false
 var checkpoint := Vector2.ZERO
 var cooldown := 0.0
 var bot: Dictionary = {}
+var charge_time: float:  ## seconds from empty to full
+	get:
+		return stage_seconds * 3.0
 var stats := {"jumps": 0, "falls": 0, "flags": 0, "perfect": 0, "edges": 0}
 
 var _start := Vector2.ZERO
@@ -90,6 +97,8 @@ var _lock := 0.0
 var _respawn_pending := false
 var _plant_requested := false
 var _respawn_requested := false
+var _cancel_requested := false
+var _full_t := 0.0  # seconds spent at full charge (the perfect window is the start of this)
 var _plant_t := 0.0
 var _plant_frames: Array = []  # [[anim, frame], ...] one entry per 1/fps of the performance
 var _impact_done := false
@@ -140,6 +149,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_plant_requested = true
 	elif event.is_action_pressed("respawn"):
 		_respawn_requested = true
+	elif event.is_action_pressed("cancel_charge"):
+		_cancel_requested = true
 
 
 func request_plant() -> void:
@@ -150,12 +161,16 @@ func request_respawn() -> void:
 	_respawn_requested = true
 
 
+func request_cancel() -> void:
+	_cancel_requested = true
+
+
 func is_airborne() -> bool:
 	return state in [State.AIR, State.CLING, State.CLING_CHARGE]
 
 
 func in_perfect_window() -> bool:
-	return charge >= perfect_from and charge <= perfect_to
+	return charge >= 1.0 and _full_t <= perfect_window
 
 
 func can_plant() -> bool:
@@ -189,6 +204,7 @@ func tick(delta: float) -> void:
 		State.PLANT: _plant_tick(delta)
 	_meter.queue_redraw()
 	_plant_requested = false  # only honoured on the tick it was pressed, in GROUND
+	_cancel_requested = false
 	_animate()
 
 
@@ -202,8 +218,7 @@ func _ground(delta: float) -> void:
 	if d != 0.0:
 		facing = d
 	if _jump_held():
-		state = State.CHARGE
-		charge = 0.0
+		_begin_charge(State.CHARGE)
 		velocity.x = 0.0
 	_fall_and_slide(delta)
 	if not is_on_floor():
@@ -211,8 +226,18 @@ func _ground(delta: float) -> void:
 
 
 func _charge(delta: float) -> void:
+	if _cancel_requested:
+		charge = 0.0
+		state = State.CLING if state == State.CLING_CHARGE else State.GROUND
+		charge_cancelled.emit()
+		return
 	var before := _stage()
-	charge = minf(charge + delta / charge_time, 1.0)
+	if charge >= 1.0:
+		_full_t += delta  # hovering at full: the perfect window runs out
+	else:
+		charge = minf(charge + delta / charge_time, 1.0)
+		if charge >= 1.0:
+			charge_full.emit()
 	if _stage() != before:
 		charge_stage.emit(_stage())
 	if state == State.CHARGE:
@@ -225,7 +250,7 @@ func _charge(delta: float) -> void:
 			charge = 0.0
 			_leave_ground()
 			return
-	if not _jump_held() or charge >= 1.0:
+	if not _jump_held():
 		# From a wall the jump always goes away from it; from the ground, where he's pointing.
 		_launch(wall_normal if state == State.CLING_CHARGE else signf(_dir()))
 
@@ -259,8 +284,7 @@ func _air(delta: float) -> void:
 func _cling_tick() -> void:
 	velocity = Vector2.ZERO
 	if _jump_held():
-		state = State.CLING_CHARGE
-		charge = 0.0
+		_begin_charge(State.CLING_CHARGE)
 	elif signf(_dir()) == wall_normal:
 		# Pushing away without a jump lets go: a small drop off the wall.
 		state = State.AIR
@@ -321,6 +345,12 @@ func _launch(dir: float) -> void:
 	stats.jumps += 1
 	sprite.play("jump")
 	_squash(Vector2(0.8, 1.25))
+
+
+func _begin_charge(to: State) -> void:
+	state = to
+	charge = 0.0
+	_full_t = 0.0
 
 
 func _leave_ground() -> void:
@@ -447,21 +477,18 @@ func _mirror() -> float:
 	return -1.0 if (facing > 0.0) == ART_FACES_LEFT else 1.0
 
 
-## Charge meter: INK frame, SAND fill, the perfect window marked in CREAM; inside the window the
-## whole fill turns CREAM. Pixel rects only (no tinting), so it stays on the NYX8 palette.
+## Charge meter: INK frame, SAND fill, stage ticks at 1/3 and 2/3. The moment it fills, the bar
+## turns CREAM for the perfect window, then back to SAND (a plain full jump). Pixel rects only
+## (no tinting), so it stays on the NYX8 palette.
 func _draw_meter() -> void:
 	if state not in [State.CHARGE, State.CLING_CHARGE]:
 		return
-	const W := 16.0
+	const W := 18.0
 	var x0 := -W / 2.0
 	_meter.draw_rect(Rect2(x0 - 1, -1, W + 2, 4), Nyx8.INK)
-	var hot := in_perfect_window()
-	_meter.draw_rect(Rect2(x0, 0, roundf(W * charge), 2), Nyx8.CREAM if hot else Nyx8.SAND)
-	if not hot:
-		var a := roundf(W * perfect_from)
-		var b := roundf(W * perfect_to)
-		_meter.draw_rect(Rect2(x0 + a, -1, 1, 4), Nyx8.CREAM)
-		_meter.draw_rect(Rect2(x0 + b, -1, 1, 4), Nyx8.CREAM)
+	_meter.draw_rect(Rect2(x0, 0, roundf(W * charge), 2), Nyx8.CREAM if in_perfect_window() else Nyx8.SAND)
+	for k in [1, 2]:
+		_meter.draw_rect(Rect2(x0 + roundf(W * k / 3.0), 0, 1, 2), Nyx8.INK)
 
 
 func _stage() -> int:

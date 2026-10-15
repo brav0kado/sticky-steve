@@ -127,10 +127,12 @@ func _try(spot: Vector2, cling: float, charge: float, dir: float, air: float, ta
 		if not steve.is_on_floor():
 			return {}
 	steve.bot = {"dir": dir, "jump": true}
-	for i in maxi(1, roundi(charge * steve.charge_time / DT)):
+	# A full charge is held past the perfect window: the climb must never need a perfect jump.
+	var ticks := maxi(1, roundi(charge * steve.charge_time / DT))
+	if charge >= 1.0:
+		ticks += ceili(steve.perfect_window / DT) + 2
+	for i in ticks:
 		steve.tick(DT)
-		if steve.is_airborne() and steve.state == 2:
-			break
 	steve.bot = {"dir": air, "jump": false}
 	for i in MAX_AIR_TICKS:
 		steve.tick(DT)
