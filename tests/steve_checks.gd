@@ -33,6 +33,35 @@ func _run() -> void:
 	var full: float = steve.jump_v_max * steve.jump_v_max / (2.0 * steve.gravity)
 	_check(absf(apexes[3] - full) < 6.0, "full charge apex %.1f ~ %.1f" % [apexes[3], full])
 
+	# Perfect release: inside the window = bonus launch speed; before it or a full auto-release = none.
+	var v_at := func(c: float) -> float: return lerpf(steve.jump_v_min, steve.jump_v_max, c)
+	for case in [[0.70, false], [(steve.perfect_from + steve.perfect_to) / 2.0, true], [1.0, false]]:
+		_reset(Vector2(0, 0))
+		var perfect_before: int = steve.stats.perfect
+		steve.bot = {"dir": 0.0, "jump": true}
+		var released := false
+		for i in 200:
+			var c_now: float = steve.charge
+			if c_now >= case[0] and not released:
+				steve.bot = {"dir": 0.0, "jump": false}
+				released = true
+			_step()
+			if steve.is_airborne():
+				var expect_v: float = v_at.call(c_now if case[0] < 1.0 else 1.0) * (steve.perfect_bonus if case[1] else 1.0)
+				var got_perfect: bool = steve.stats.perfect > perfect_before
+				_check(got_perfect == case[1], "release at %.2f: perfect=%s" % [case[0], case[1]])
+				_check(absf(-steve.velocity.y - expect_v) < 25.0, "release at %.2f: launch %.0f ~ %.0f" % [case[0], -steve.velocity.y, expect_v])
+				break
+	_check(steve.perfect_to < 1.0, "the window closes before full charge, so auto-release is never perfect")
+
+	# Edge landing: a sliver of foot on a ledge fires edge_landed; a centred landing doesn't.
+	for case in [[-102.0, true], [-60.0, false]]:  # ledge spans x -100..-20, Steve is 8 px wide
+		_reset(Vector2(case[0], -130))
+		steve.state = 2  # AIR: falls onto the ledge
+		_run_until(func() -> bool: return not steve.is_airborne(), 120)
+		_check(("edge" in _events) == case[1] and steve.last_floor != null and steve.global_position.y < -79.0,
+			"landing at x %.0f on the ledge: edge=%s" % [case[0], case[1]])
+
 	# A full charge releases by itself (Jump King), and charging stops walking.
 	_reset(Vector2(0, 0))
 	steve.bot = {"dir": 1.0, "jump": true}
@@ -202,6 +231,7 @@ func _build_arena() -> void:
 	arena.add_child(steve)
 	for sig in ["bonked", "slapped", "planted", "flag_ready", "respawned", "landed"]:
 		steve.connect(sig, func(_a = null, _b = null) -> void: _events.append(sig))
+	steve.edge_landed.connect(func(_o: float) -> void: _events.append("edge"))
 
 
 func _block(pos: Vector2, size: Vector2, surface: int) -> void:

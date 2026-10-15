@@ -5,7 +5,7 @@ extends Node
 const DIR := "res://audio/sfx/"
 const NAMES := [
 	"jump", "charge_tick", "land", "land_hard", "bonk", "slap",
-	"plant", "plant_ring", "flag_ready", "respawn", "summit",
+	"plant", "plant_ring", "flag_ready", "respawn", "summit", "perfect", "edge",
 ]
 const POOL := 8
 

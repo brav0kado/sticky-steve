@@ -87,8 +87,8 @@ func _process(delta: float) -> void:
 func show_summit() -> void:
 	running = false
 	var s: Dictionary = steve.stats
-	_card.text = "THE TOP\n\n%s\n%d jumps   %d falls   %d flags\n\nEnter: climb again" % [
-		clock(elapsed), s.jumps, s.falls, s.flags]
+	_card.text = "THE TOP\n\n%s\n%d jumps   %d falls   %d flags\n%d perfect   %d edge landings\n\nEnter: climb again" % [
+		clock(elapsed), s.jumps, s.falls, s.flags, s.perfect, s.edges]
 	_panel.show()
 
 

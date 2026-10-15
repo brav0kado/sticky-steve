@@ -35,9 +35,13 @@ before playing. Symptom if you skip it: `Unable to open file: res://.godot/impor
 
 ## How it plays (the rules the tests hold)
 
-- **Jump:** hold to charge (three charge animations), release to jump. More charge = higher; a
-  full charge releases by itself. The direction held at release sets the launch. Charging stops
-  walking.
+- **Jump:** hold to charge (0.9 s; three charge animations and a meter over his head), release
+  to jump. More charge = higher, up to ~128 px; a full charge releases by itself. The direction
+  held at release sets the launch. Charging stops walking.
+- **Perfect release:** let go while the meter is inside its marked window (it turns cream), just
+  short of full: ~12% more height, a sparkle and a "ting". A full auto-release is never perfect.
+- **Edge landing:** land with 3 px or less of foot on a ledge and time drops to a quarter for
+  half a second.
 - **Air control:** slow (an acceleration): you can nudge a jump, not reverse it.
 - **Walls:** a plain wall bounces Steve back. A **sticky** wall (studded) can be slapped once
   per airtime: hold toward it when you hit it, he hangs there, then charge a jump away from it.

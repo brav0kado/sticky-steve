@@ -11,10 +11,17 @@ const FLAG_BASE := Vector2(25, 31)  ## flag.png: pixel at the bottom of its pole
 @onready var hud: CanvasLayer = $HUD
 @onready var flags: Node2D = $Flags
 @onready var dust: CPUParticles2D = $Dust
+@onready var sparkle: CPUParticles2D = $Sparkle
 @onready var summit: Area2D = $Tower/Summit
 
+## Edge-landing slow-mo: how slow, and for how long in real seconds.
+const EDGE_SLOWMO_SCALE := 0.25
+const EDGE_SLOWMO_SECONDS := 0.5
+
 var _won := false
-var _stop_until := 0
+## Active time effects: [scale, until_msec]. The slowest active one wins, so a hitstop inside a
+## slow-mo (or the reverse) never ends the other early. Real time: they must run while time is slow.
+var _time_fx: Array = []
 
 
 func _ready() -> void:
@@ -26,6 +33,8 @@ func _ready() -> void:
 	steve.charge_stage.connect(func(stage: int) -> void: Sfx.play("charge_tick", 0.9 + 0.25 * stage, -6.0))
 	steve.planted.connect(_on_planted)
 	steve.flag_ready.connect(func() -> void: Sfx.play("flag_ready", 1.0, -4.0))
+	steve.perfect_release.connect(_on_perfect)
+	steve.edge_landed.connect(_on_edge)
 	steve.respawned.connect(func() -> void:
 		Sfx.play("respawn", 1.0, -4.0)
 		camera.reset_physics_interpolation())
@@ -86,14 +95,38 @@ func _on_summit(body: Node2D) -> void:
 	hud.show_summit()
 
 
-## Freeze the world for a beat on impacts. Overlapping calls extend one shared end time, so an
-## early one can't unfreeze a later one. Waits on render frames: they keep coming while time is slow.
+func _process(_delta: float) -> void:
+	var now := Time.get_ticks_msec()
+	_time_fx = _time_fx.filter(func(fx: Array) -> bool: return fx[1] > now)
+	var scale := 1.0
+	for fx: Array in _time_fx:
+		scale = minf(scale, fx[0])
+	Engine.time_scale = scale
+
+
+## Freeze the world for a beat on impacts.
 func hitstop(seconds: float) -> void:
-	_stop_until = maxi(_stop_until, Time.get_ticks_msec() + int(seconds * 1000.0))
-	Engine.time_scale = 0.05
-	while is_inside_tree() and Time.get_ticks_msec() < _stop_until:
-		await get_tree().process_frame
-	Engine.time_scale = 1.0
+	slow_time(0.05, seconds)
+
+
+## Run the world at `scale` for `seconds` of real time.
+func slow_time(scale: float, seconds: float) -> void:
+	_time_fx.append([scale, Time.get_ticks_msec() + int(seconds * 1000.0)])
+	Engine.time_scale = minf(Engine.time_scale, scale)
+
+
+func _on_perfect() -> void:
+	Sfx.play("perfect", 1.0, -2.0)
+	sparkle.global_position = steve.global_position + Vector2(0, -12)
+	sparkle.restart()
+	sparkle.emitting = true
+	camera.shake(1.5, 0.1)
+
+
+## A sliver of foot on the ledge: time drops to a crawl so the player sees how close it was.
+func _on_edge(_overlap: float) -> void:
+	Sfx.play("edge", 1.0, -2.0)
+	slow_time(EDGE_SLOWMO_SCALE, EDGE_SLOWMO_SECONDS)
 
 
 func _exit_tree() -> void:

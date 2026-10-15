@@ -7,6 +7,11 @@ extends CharacterBody2D
 ## it. Landing restores the slap. Planting a flag (20 s cooldown) sets the checkpoint; landing
 ## below it sends him back to it.
 ##
+## Perfect release: letting go while the charge is inside a window just short of full adds a
+## height bonus. A full charge auto-releases past the window, so perfect is always a choice. The
+## meter over his head (only while charging) shows the charge and marks the window.
+## Edge landing: landing with only a sliver of his feet on the ledge fires edge_landed (slow-mo).
+##
 ## All movement runs from tick(delta), so tests step him deterministically without the engine
 ## clock. `bot` replaces player input when non-empty (tests only): {"dir": -1..1, "jump": bool}.
 
@@ -18,6 +23,8 @@ signal charge_stage(stage: int)
 signal planted(flag_base: Vector2, faces_right: bool)
 signal flag_ready
 signal respawned
+signal perfect_release
+signal edge_landed(overlap: float)
 
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 
@@ -26,10 +33,14 @@ enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 @export_group("Jump")
 @export var charge_time := 0.9  ## seconds to full charge; a full charge releases by itself
 @export var jump_v_min := 170.0
-@export var jump_v_max := 430.0
+@export var jump_v_max := 480.0  ## full charge: ~128 px (6 Steves)
 @export var jump_vx := 115.0
 @export var gravity := 900.0
-@export var max_fall := 480.0
+@export var max_fall := 520.0
+@export_group("Perfect release")
+@export var perfect_from := 0.80  ## charge fraction where the window opens (0.72 s at 0.9 s charge)
+@export var perfect_to := 0.93  ## ...and closes: ~0.12 s, about 7 frames
+@export var perfect_bonus := 1.06  ## launch speed multiplier: ~12% more height
 @export_group("Air")
 @export var air_speed := 115.0
 @export var air_accel := 180.0  ## px/s²: a full reversal takes ~1.3 s, so the launch still matters
@@ -39,6 +50,7 @@ enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 @export var land_lock := 0.1
 @export var hard_land_lock := 0.35
 @export var fall_stat := 64.0  ## landing this far below the take-off counts as a fall (stats)
+@export var edge_px := 3.0  ## landing with this much foot (or less) on the ledge is an edge landing
 @export_group("Flag")
 @export var flag_cooldown := 20.0
 @export var respawn_margin := 24.0  ## landing this far below the flag sends him back to it
@@ -69,7 +81,7 @@ var has_checkpoint := false
 var checkpoint := Vector2.ZERO
 var cooldown := 0.0
 var bot: Dictionary = {}
-var stats := {"jumps": 0, "falls": 0, "flags": 0}
+var stats := {"jumps": 0, "falls": 0, "flags": 0, "perfect": 0, "edges": 0}
 
 var _start := Vector2.ZERO
 var _apex_y := 0.0
@@ -88,6 +100,8 @@ var _grip: Dictionary = {}
 @onready var sprite: AnimatedSprite2D = $Sprite
 @onready var plant_sprite: AnimatedSprite2D = $PlantSprite
 @onready var pole: Sprite2D = $Pole
+@onready var shape: CollisionShape2D = $Shape
+var _meter: Node2D
 
 
 func _ready() -> void:
@@ -111,6 +125,10 @@ func _ready() -> void:
 				_plant_frames.append([anim, f])
 	plant_sprite.hide()
 	pole.hide()
+	_meter = Node2D.new()
+	_meter.position = Vector2(0, -30)  # just over his head
+	_meter.draw.connect(_draw_meter)
+	add_child(_meter)
 
 
 func _physics_process(delta: float) -> void:
@@ -134,6 +152,10 @@ func request_respawn() -> void:
 
 func is_airborne() -> bool:
 	return state in [State.AIR, State.CLING, State.CLING_CHARGE]
+
+
+func in_perfect_window() -> bool:
+	return charge >= perfect_from and charge <= perfect_to
 
 
 func can_plant() -> bool:
@@ -165,6 +187,7 @@ func tick(delta: float) -> void:
 		State.CLING: _cling_tick()
 		State.LAND: _land_tick(delta)
 		State.PLANT: _plant_tick(delta)
+	_meter.queue_redraw()
 	_plant_requested = false  # only honoured on the tick it was pressed, in GROUND
 	_animate()
 
@@ -282,10 +305,14 @@ func _plant_tick(delta: float) -> void:
 
 # ---------------------------------------------------------------- transitions
 func _launch(dir: float) -> void:
-	velocity = Vector2(dir * jump_vx, -lerpf(jump_v_min, jump_v_max, charge))
+	var perfect := in_perfect_window()
+	velocity = Vector2(dir * jump_vx, -lerpf(jump_v_min, jump_v_max, charge) * (perfect_bonus if perfect else 1.0))
 	if dir != 0.0:
 		facing = dir
 	jumped.emit(charge)
+	if perfect:
+		stats.perfect += 1
+		perfect_release.emit()
 	charge = 0.0
 	state = State.AIR
 	cling_block = null
@@ -327,6 +354,10 @@ func _land() -> void:
 	sprite.play("land")
 	_squash(Vector2(1.3, 0.75) if hard else Vector2(1.15, 0.88))
 	landed.emit(fall, hard)
+	var overlap := _foot_overlap()
+	if overlap <= edge_px:
+		stats.edges += 1
+		edge_landed.emit(overlap)
 
 
 func respawn() -> void:
@@ -375,6 +406,17 @@ func _fall_and_slide(delta: float) -> void:
 	move_and_slide()
 
 
+## How many px of his feet are on the block he landed on (INF if it isn't a Block).
+func _foot_overlap() -> float:
+	var block := last_floor as Block
+	if block == null:
+		return INF
+	var half: float = (shape.shape as RectangleShape2D).size.x / 2.0
+	var left := maxf(global_position.x - half, block.global_position.x)
+	var right := minf(global_position.x + half, block.global_position.x + block.size.x)
+	return maxf(right - left, 0.0)
+
+
 func _floor_collider() -> Node:
 	for i in get_slide_collision_count():
 		var col := get_slide_collision(i)
@@ -403,6 +445,23 @@ func _place_pole(anim: String, frame: int, i: int) -> void:
 
 func _mirror() -> float:
 	return -1.0 if (facing > 0.0) == ART_FACES_LEFT else 1.0
+
+
+## Charge meter: INK frame, SAND fill, the perfect window marked in CREAM; inside the window the
+## whole fill turns CREAM. Pixel rects only (no tinting), so it stays on the NYX8 palette.
+func _draw_meter() -> void:
+	if state not in [State.CHARGE, State.CLING_CHARGE]:
+		return
+	const W := 16.0
+	var x0 := -W / 2.0
+	_meter.draw_rect(Rect2(x0 - 1, -1, W + 2, 4), Nyx8.INK)
+	var hot := in_perfect_window()
+	_meter.draw_rect(Rect2(x0, 0, roundf(W * charge), 2), Nyx8.CREAM if hot else Nyx8.SAND)
+	if not hot:
+		var a := roundf(W * perfect_from)
+		var b := roundf(W * perfect_to)
+		_meter.draw_rect(Rect2(x0 + a, -1, 1, 4), Nyx8.CREAM)
+		_meter.draw_rect(Rect2(x0 + b, -1, 1, 4), Nyx8.CREAM)
 
 
 func _stage() -> int:
