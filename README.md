@@ -70,7 +70,9 @@ has 8 in two tags, so no SpriteFrames is generated for it yet. Save and re-expor
 
 The whole game is **NYX8** (`art/palette/nyx8.hex`, Aseprite's built-in NYX8). Every PNG pixel and every
 colour in a scene must be one of its 8 colours: `tests/palette_checks.gd` fails otherwise. Steve is
-drawn in the darkest colour, so backgrounds behind him use the light half (`#997577`, `#c3a38a`, `#f6d6bd`).
+**Backgrounds never use Steve's colours** (`#08141e`, `#4e495f`, `#c3a38a`, `#f6d6bd`), so they get
+`#0f2a3f`, `#20394f`, `#997577`, `#816271`; behind Steve use `#997577` / `#816271`. Put background and
+tile art in `art/world/` and add background nodes to group `background`: the test checks both.
 
 ## Layout
 

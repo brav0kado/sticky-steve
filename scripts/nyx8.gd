@@ -3,8 +3,10 @@ class_name Nyx8
 ## lines) takes its colour from here so it matches Martin's art. tests/palette_checks.gd fails on
 ## any PNG pixel or .tscn/.tres Color outside it. Source of truth: art/palette/nyx8.hex.
 ##
-## Steve's body is INK, the darkest colour: put him on the light half (DUSK, SAND, CREAM) or he
-## vanishes. The dark blues suit distant backgrounds.
+## Backgrounds never use Steve's colours (Martin, 2026-10-15), so he can never blend into the
+## world. That leaves BACKGROUND. Behind Steve use DUSK/MAUVE; NAVY/SLATE are close to his INK
+## body, so keep them for distant layers. tests/palette_checks.gd derives Steve's colours from his
+## sheet and fails if STEVE drifts from it or a background uses one.
 
 const INK := Color("08141e")
 const NAVY := Color("0f2a3f")
@@ -16,6 +18,8 @@ const MAUVE := Color("816271")
 const SHADOW := Color("4e495f")
 
 const ALL: Array[Color] = [INK, NAVY, SLATE, CREAM, SAND, DUSK, MAUVE, SHADOW]
+const STEVE: Array[Color] = [INK, SHADOW, SAND, CREAM]  ## what art/steve/steve.png is drawn in
+const BACKGROUND: Array[Color] = [NAVY, SLATE, DUSK, MAUVE]  ## everything else
 
 
 ## True if c is a palette colour (alpha ignored, 1/255 tolerance for float round-trips).

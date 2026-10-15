@@ -4,16 +4,16 @@
 
 [node name="Main" type="Node2D"]
 
-[node name="Sky" type="ColorRect" parent="."]
+[node name="Sky" type="ColorRect" parent="." groups=["background"]]
 offset_right = 640.0
 offset_bottom = 360.0
 color = Color(0.6, 0.4588, 0.4667, 1)
 
-[node name="Ground" type="ColorRect" parent="."]
+[node name="Ground" type="ColorRect" parent="." groups=["background"]]
 offset_top = 296.0
 offset_right = 640.0
 offset_bottom = 360.0
-color = Color(0.3059, 0.2863, 0.3725, 1)
+color = Color(0.5059, 0.3843, 0.4431, 1)
 
 [node name="Steve" type="AnimatedSprite2D" parent="." groups=["player"]]
 position = Vector2(320, 296)
