@@ -66,12 +66,19 @@ origin is then the point between his feet.
 **Known art issue:** `plant_flag.png` has 10 frames (rows of 3/5/2) but `plant_flag.aseprite`
 has 8 in two tags, so no SpriteFrames is generated for it yet. Save and re-export it.
 
+## Palette
+
+The whole game is **NYX8** (`art/palette/nyx8.hex`, Aseprite's built-in NYX8). Every PNG pixel and every
+colour in a scene must be one of its 8 colours: `tests/palette_checks.gd` fails otherwise. Steve is
+drawn in the darkest colour, so backgrounds behind him use the light half (`#997577`, `#c3a38a`, `#f6d6bd`).
+
 ## Layout
 
 | Path | What |
 |---|---|
 | `scenes/main.tscn` | main scene (placeholder) |
 | `scripts/debug.gd` | autoload `Debug`: F12 report, F11 fullscreen |
+| `scripts/nyx8.gd` | `Nyx8`: the palette as constants, for anything drawn in code |
 | `art/` | sprites + generated `*_frames.tres`; `art/source/` holds the .aseprite files |
 | `tools/` | `aseprite_frames.py`, `send-report.sh` |
 | `tests/` | headless suites; each prints `<NAME> pass` |
@@ -80,4 +87,5 @@ Physics layers: 1 world, 2 player, 3 sticky, 4 hazard.
 
 ## Tests
 
-    godot --headless --path . -s res://tests/boot_checks.gd   # Steve's animations vs tags, input map, main scene, report info
+    godot --headless --path . -s res://tests/boot_checks.gd      # Steve's animations vs tags, input map, main scene, report info
+    godot --headless --path . -s res://tests/palette_checks.gd   # every art pixel and scene colour is NYX8

@@ -7,13 +7,13 @@
 [node name="Sky" type="ColorRect" parent="."]
 offset_right = 640.0
 offset_bottom = 360.0
-color = Color(0.13, 0.15, 0.2, 1)
+color = Color(0.6, 0.4588, 0.4667, 1)
 
 [node name="Ground" type="ColorRect" parent="."]
 offset_top = 296.0
 offset_right = 640.0
 offset_bottom = 360.0
-color = Color(0.29, 0.25, 0.22, 1)
+color = Color(0.3059, 0.2863, 0.3725, 1)
 
 [node name="Steve" type="AnimatedSprite2D" parent="." groups=["player"]]
 position = Vector2(320, 296)
@@ -27,5 +27,6 @@ offset_left = 16.0
 offset_top = 16.0
 offset_right = 624.0
 offset_bottom = 64.0
+theme_override_colors/font_color = Color(0.03137, 0.07843, 0.1176, 1)
 text = "Sticky Steve: setup build (no gameplay yet)
 F11 fullscreen   F12 bug report"
