@@ -6,6 +6,11 @@ is what the game draws. Godot can't read .aseprite, so this bridges the two with
 install. Stdlib only.
 
     tools/aseprite_frames.py art/source/stickysteve.aseprite art/steve/steve.png art/steve/steve_frames.tres
+    tools/aseprite_frames.py --render art/source/stickysteve.aseprite art/steve/steve.png art/steve/steve_frames.tres
+
+--render draws the PNG itself from the .aseprite (one row per tag, like Aseprite's "By Rows +
+Split Tags" export), so saving in Aseprite is the only step. Supports RGBA files with any number
+of normal-blend layers; hidden layers and layers named with a leading "_" (guides) are skipped.
 
 Sheet layouts it accepts (anything else is an error, never a guess):
   rows    one row per tag, in tag order, each row starting at column 0  (Aseprite: "By Rows" + "Split Tags")
@@ -25,9 +30,11 @@ import zlib
 from pathlib import Path
 
 # Played once and held on the last frame. Repeat in the .aseprite overrides this for new tags.
-ONE_SHOT = {"jump", "jump_stop", "land", "raise_pole", "plant"}
+ONE_SHOT = {"jump", "jump_stop", "land", "raise_pole", "plant_pole"}
 
 CHUNK_TAGS = 0x2018
+CHUNK_LAYER = 0x2004
+CHUNK_CEL = 0x2005
 ASE_MAGIC = 0xA5E0
 FRAME_MAGIC = 0xF1FA
 
@@ -66,6 +73,104 @@ def read_aseprite(path: Path) -> dict:
     if not tags:
         tags = [("default", 0, frames - 1, 0)]  # untagged file: one animation of every frame
     return {"w": w, "h": h, "durations": durations, "tags": tags}
+
+
+def read_frames(path: Path) -> tuple[int, int, list[list[bytearray]]]:
+    """Every frame flattened to RGBA rows. RGBA (32-bit) files only; normal blend, layer and cel
+    opacity honoured; hidden layers and "_guide" layers skipped."""
+    b = path.read_bytes()
+    _size, magic, frames, w, h, depth = struct.unpack_from("<IHHHHH", b, 0)
+    if magic != ASE_MAGIC:
+        raise SheetError(f"{path}: not an .aseprite file")
+    if depth != 32:
+        raise SheetError(f"{path}: colour mode is {depth}-bit; --render needs RGBA (Sprite > Color Mode > RGB)")
+    layers = []  # (visible, opacity, name)
+    cels: list[dict] = []  # per frame: layer index -> (x, y, opacity, w, h, rgba bytes)
+    o = 128
+    for f in range(frames):
+        fsize, _m, old_n, _d = struct.unpack_from("<IHHH", b, o)
+        n = struct.unpack_from("<I", b, o + 12)[0] or old_n
+        frame_cels: dict = {}
+        c = o + 16
+        for _ in range(n):
+            csize, ctype = struct.unpack_from("<IH", b, c)
+            d = c + 6
+            if ctype == CHUNK_LAYER:
+                flags, ltype, _child, _dw, _dh, blend, opacity = struct.unpack_from("<HHHHHHB", b, d)
+                name_len = struct.unpack_from("<H", b, d + 16)[0]
+                name = b[d + 18:d + 18 + name_len].decode("utf-8")
+                if blend != 0 and ltype == 0:
+                    print(f"WARNING: layer {name!r} uses a blend mode other than Normal; drawn as Normal")
+                layers.append((bool(flags & 1) and ltype == 0 and not name.startswith("_"), opacity, name))
+            elif ctype == CHUNK_CEL:
+                li, x, y, opacity, kind = struct.unpack_from("<HhhBH", b, d)
+                body = d + 16
+                if kind == 1:  # linked: same image as another frame's cel on this layer
+                    src = struct.unpack_from("<H", b, body)[0]
+                    if li in cels[src]:
+                        frame_cels[li] = cels[src][li]
+                elif kind in (0, 2):
+                    cw, ch = struct.unpack_from("<HH", b, body)
+                    raw = b[body + 4:c + csize]
+                    px = zlib.decompress(raw) if kind == 2 else raw[:cw * ch * 4]
+                    frame_cels[li] = (x, y, opacity, cw, ch, px)
+                else:
+                    raise SheetError(f"{path}: frame {f} has a tilemap cel, which --render doesn't support")
+            c += csize
+        cels.append(frame_cels)
+        o += fsize
+    out = []
+    for frame_cels in cels:
+        canvas = [bytearray(w * 4) for _ in range(h)]
+        for li, (visible, lop, _name) in enumerate(layers):
+            if not visible or li not in frame_cels:
+                continue
+            x, y, cop, cw, ch, px = frame_cels[li]
+            for yy in range(ch):
+                ty = y + yy
+                if not 0 <= ty < h:
+                    continue
+                row = canvas[ty]
+                for xx in range(cw):
+                    tx = x + xx
+                    if not 0 <= tx < w:
+                        continue
+                    i = (yy * cw + xx) * 4
+                    sa = px[i + 3] * lop * cop // (255 * 255)
+                    if sa == 0:
+                        continue
+                    j = tx * 4
+                    da = row[j + 3]
+                    oa = sa + da * (255 - sa) // 255  # "over", straight alpha
+                    for k in range(3):
+                        row[j + k] = (px[i + k] * sa + row[j + k] * da * (255 - sa) // 255) // oa
+                    row[j + 3] = oa
+        out.append(canvas)
+    return w, h, out
+
+
+def write_png(path: Path, rows: list[bytearray]) -> None:
+    """8-bit RGBA PNG, no filtering: tiny sheets, so simplicity beats compression ratio."""
+    h, w = len(rows), len(rows[0]) // 4
+    raw = b"".join(b"\x00" + bytes(r) for r in rows)
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+
+
+def render_sheet(ase_path: Path, ase: dict, png: Path) -> None:
+    """One row per tag, each row from column 0: the layout read_aseprite + layout() expect."""
+    w, h, frames = read_frames(ase_path)
+    tags = ase["tags"]
+    cols = max(end - start + 1 for _, start, end, _ in tags)
+    sheet = [bytearray(cols * w * 4) for _ in range(len(tags) * h)]
+    for r, (_name, start, end, _rep) in enumerate(tags):
+        for col, f in enumerate(range(start, end + 1)):
+            for y in range(h):
+                sheet[r * h + y][col * w * 4:(col + 1) * w * 4] = frames[f][y]
+    write_png(png, sheet)
 
 
 def png_size(path: Path) -> tuple[int, int]:
@@ -192,12 +297,18 @@ def main() -> int:
     ap.add_argument("png", type=Path)
     ap.add_argument("out", type=Path)
     ap.add_argument("--tags", help="name:count,... rows override (PNG newer than its .aseprite)")
+    ap.add_argument("--render", action="store_true", help="draw the PNG from the .aseprite first")
     a = ap.parse_args()
     try:
         ase = read_aseprite(a.aseprite)
         if a.tags:
             ase = override_tags(ase, a.tags)
             print(f"WARNING: tags from --tags, not {a.aseprite.name}: save the .aseprite and drop --tags")
+        if a.render:
+            if a.tags:
+                raise SheetError("--render takes its tags from the .aseprite; drop --tags")
+            render_sheet(a.aseprite, ase, a.png)
+            print(f"rendered {a.png}")
         cells = layout(ase, *png_size(a.png))
         check_cells(ase, cells, png_alpha(a.png))
         write_tres(ase, cells, res_path(a.png), a.out)
