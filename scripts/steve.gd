@@ -39,7 +39,7 @@ signal bounced(block: Block)
 signal clutch_save(fall: float)
 signal fell(px: float)
 signal streak_broken(streak: int)
-signal plant_refused(cooldown_left: float)  ## F pressed when planting isn't possible
+signal plant_refused(reason: String)  ## F (or R) did nothing: "cooldown", "air" or "noflag"
 
 enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 
@@ -72,6 +72,7 @@ enum State { GROUND, CHARGE, AIR, CLING, CLING_CHARGE, LAND, PLANT }
 @export var edge_px := 3.0  ## landing with this much foot (or less) on the ledge is an edge landing
 @export_group("Flag")
 @export var flag_cooldown := 20.0
+@export var flags_enabled := true  ## false in a no-flag climb: no planting, no return to a flag
 @export var respawn_margin := 24.0  ## landing this far below the flag sends him back to it
 
 ## Steve is drawn facing left (headband trailing right; the plant frames reach to screen-left), so
@@ -191,7 +192,7 @@ func in_perfect_window() -> bool:
 
 
 func can_plant() -> bool:
-	return state == State.GROUND and is_on_floor() and cooldown <= 0.0 and not _plant_frames.is_empty()
+	return flags_enabled and state == State.GROUND and is_on_floor() and cooldown <= 0.0 and not _plant_frames.is_empty()
 
 
 ## For the F12 report (Debug autoload).
@@ -210,11 +211,18 @@ func tick(delta: float) -> void:
 			flag_ready.emit()
 	if _respawn_requested:
 		_respawn_requested = false
-		if state != State.PLANT:
+		if not flags_enabled:
+			plant_refused.emit("noflag")
+		elif state != State.PLANT:
 			respawn()
-	# Say why F did nothing (cooldown, or in the air): a dead button reads as a bug.
-	if _plant_requested and state != State.PLANT and (cooldown > 0.0 or is_airborne()):
-		plant_refused.emit(cooldown)
+	# Say why F did nothing: a dead button reads as a bug.
+	if _plant_requested and state != State.PLANT:
+		if not flags_enabled:
+			plant_refused.emit("noflag")
+		elif cooldown > 0.0:
+			plant_refused.emit("cooldown")
+		elif is_airborne():
+			plant_refused.emit("air")
 	match state:
 		State.GROUND: _ground(delta)
 		State.CHARGE, State.CLING_CHARGE: _charge(delta)

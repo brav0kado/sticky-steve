@@ -10,6 +10,11 @@ extends StaticBody2D
 ## regrow_delay. Colours come only from Nyx8.BACKGROUND: backgrounds never use
 ## Steve's colours (tests/palette_checks.gd checks FILL/EDGE against his sheet).
 ##
+## Skin: with `skin` set (the zone's tile sheet, art/world/zone<N>_tiles.png) the block draws as a
+## nine-slice from 8 px tiles: each surface owns a 24x24 slot (3x3 tiles: corners, edges, centre)
+## at x = SLOT_X[surface]; edges and centre repeat to fill any size >= 16x16. Without a skin it
+## draws the greybox look. Art spec: Hub sticky-steve-art-spec.
+##
 ## route_step >= 0 marks the intended climb in order; tests/route_checks.gd proves every step can
 ## be reached from the one before with real jumps, so a level edit can't silently break the climb.
 
@@ -18,6 +23,8 @@ enum Surface { SOLID, STICKY, BOUNCY, CRUMBLE }
 const FILL := {Surface.SOLID: Nyx8.SLATE, Surface.STICKY: Nyx8.MAUVE, Surface.BOUNCY: Nyx8.NAVY, Surface.CRUMBLE: Nyx8.SLATE}
 const EDGE := {Surface.SOLID: Nyx8.NAVY, Surface.STICKY: Nyx8.SLATE, Surface.BOUNCY: Nyx8.MAUVE, Surface.CRUMBLE: Nyx8.DUSK}
 const STICKY_LAYER := 1 << 2  ## physics layer 3
+const TILE := 8
+const SLOT_X := {Surface.SOLID: 0, Surface.STICKY: 32, Surface.BOUNCY: 64, Surface.CRUMBLE: 96}
 
 @export var size := Vector2(64, 16):
 	set(v):
@@ -31,6 +38,12 @@ const STICKY_LAYER := 1 << 2  ## physics layer 3
 @export var bounce_speed := 600.0  ## BOUNCY: launch speed straight up (~200 px with apex hang)
 @export var crumble_delay := 1.2  ## CRUMBLE: seconds from first touch to falling away
 @export var regrow_delay := 3.0  ## CRUMBLE: seconds gone before it comes back
+
+## The zone's tile sheet (main.gd assigns it by zone); null = greybox.
+var skin: Texture2D:
+	set(v):
+		skin = v
+		queue_redraw()
 
 var _crumble_t := -1.0  # >= 0 while counting down to falling
 var _gone_t := -1.0  # >= 0 while gone
@@ -122,6 +135,9 @@ func _draw() -> void:
 	if _crumble_t >= 0.0:
 		shake.x = float((Time.get_ticks_msec() / 50) % 3 - 1)
 	draw_set_transform(shake)
+	if skin:
+		_draw_skin()
+		return
 	draw_rect(Rect2(Vector2.ZERO, size), FILL[surface])
 	var edge: Color = EDGE[surface]
 	draw_rect(Rect2(0, 0, size.x, minf(2.0, size.y)), edge)  # lit top: reads as a ledge
@@ -147,3 +163,29 @@ func _draw() -> void:
 			draw_rect(Rect2(1, y, 2, 2), edge)
 			draw_rect(Rect2(size.x - 3, y, 2, 2), edge)
 			y += 6.0
+
+
+## Nine-slice from the surface's 24x24 slot: 8 px corners stay put, edges and centre repeat; a
+## run that doesn't divide by 8 ends on a cropped tile (left/top part of it).
+func _draw_skin() -> void:
+	var ox: int = SLOT_X[surface]
+	var cols := _spans(size.x)
+	var rows := _spans(size.y)
+	for c: Array in cols:
+		for r: Array in rows:
+			var src := Rect2(ox + c[2] * TILE, r[2] * TILE, c[1], r[1])
+			draw_texture_rect_region(skin, Rect2(c[0], r[0], c[1], r[1]), src)
+
+
+## [[offset, length, tile index 0/1/2], ...] covering `length`: an 8 px start tile, repeated 8 px
+## middles (the last one cropped) and an 8 px end tile.
+static func _spans(length: float) -> Array:
+	var n := int(length)
+	var out := [[0, mini(TILE, n), 0]]
+	var x := TILE
+	while x < n - TILE:
+		out.append([x, mini(TILE, n - TILE - x), 1])
+		x += TILE
+	if n > TILE:
+		out.append([n - TILE, TILE, 2])
+	return out

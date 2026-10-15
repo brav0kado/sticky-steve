@@ -14,6 +14,11 @@ var running := true
 var gems := 0
 var gems_total := 0
 var best_m := 0.0
+var flags_enabled := true:  ## the flag meter only exists in a flagged climb
+	set(v):
+		flags_enabled = v
+		if _meter:
+			_apply_mode()
 
 var _info: Label
 var _gem_label: Label
@@ -57,7 +62,7 @@ func _ready() -> void:
 	_icon.texture = atlas
 	_meter.add_child(_icon)
 	_hint = _centered(-52, Control.PRESET_CENTER_BOTTOM)
-	_hint.text = "Hold SPACE to charge, let go to jump: on the cream flash = perfect\nC cancel   A/D move   F plant flag   R back to flag"
+	_apply_mode()
 	_best_label = _label(Vector2.ZERO)
 	_best_label.add_theme_color_override("font_color", Nyx8.SAND)
 	_best_label.hide()
@@ -81,6 +86,14 @@ func _ready() -> void:
 	_card.add_theme_font_size_override("font_size", 13)  # the whole card fits a 360 px screen
 	_card.reparent(_panel)
 	_panel.hide()
+
+
+## Flag meter and hint for this climb's mode (the HUD is ready before Main sets the mode).
+func _apply_mode() -> void:
+	_meter.visible = flags_enabled
+	_flag_label.visible = flags_enabled
+	var tail := "F plant flag   R back to flag" if flags_enabled else "no flags: every fall counts"
+	_hint.text = "Hold SPACE to charge, let go to jump: on the cream flash = perfect\nC cancel   A/D move   " + tail
 
 
 func bind(player: Node2D, total_gems: int, best_height_m: float) -> void:

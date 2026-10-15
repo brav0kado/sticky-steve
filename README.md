@@ -36,7 +36,9 @@ before playing. Symptom if you skip it: `Unable to open file: res://.godot/impor
 ## Menus
 
 The game boots to the **title** (`scenes/title.tscn`): Climb, Settings, Reset progress (press
-twice), Quit, with your bests underneath. **Esc / pad Start** pauses the climb (Resume, Restart
+twice), Quit, with your bests underneath. **Climb** asks how: **With flags** or **No flags**, with
+an explainer for whichever is focused. Each mode keeps its own bests (time, height, splits);
+gems, climbs and best streak are shared. In a no-flag climb F and R say "no flags this climb". **Esc / pad Start** pauses the climb (Resume, Restart
 run, Settings, Quit to title). **Settings**: master, sound-effect and music volume (left/right on
 a row) and fullscreen, saved in `user://settings.cfg` (`scripts/settings.gd`, autoload
 `Settings`; audio buses Master/SFX/Music in `default_bus_layout.tres`). Menus are keyboard and
@@ -114,6 +116,12 @@ and builds the SpriteFrames from its **tags** (names, frame order, timing):
 | `art/flag/flag.png` | 32x32 | flag_wave 6 |
 | `art/flag/plant_flag.png` | 64x64 | raise_pole 3, spin_pole 5, plant_pole 2 |
 | `art/props/pole.png` | 32x32 | single frame |
+
+**Zone tile sheets:** one per zone, `art/world/zone<N>_tiles.png` (128x24: four 24x24 nine-slice
+slots for SOLID, STICKY, BOUNCY, CRUMBLE, 8 px tiles). Start from
+`art/templates/zone_tiles_template.aseprite`; full spec in the Hub note `sticky-steve-art-spec`.
+Render one with `tools/aseprite_frames.py --render art/source/zone1_tiles.aseprite art/world/zone1_tiles.png -`.
+The current sheets are placeholders from `tools/make_tile_template.py`; a missing sheet = greybox.
 
 Facing: Steve is drawn facing left (headband trailing right), so facing right flips him.
 `walk_right` is drawn facing right and is mirrored for walking left.

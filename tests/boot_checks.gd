@@ -54,6 +54,9 @@ func _run() -> void:
 		_check(get_first_node_in_group("player") != null, "main scene has a player")
 		var main := current_scene
 		_check(main._gems_total >= 6 and main._zones.size() >= 3, "tower has gems (%d) and zones (%d)" % [main._gems_total, main._zones.size()])
+		var bare: Array = main.get_node("Tower").get_children().filter(
+			func(n: Node) -> bool: return n is StaticBody2D and n.skin == null)
+		_check(bare.is_empty(), "every block wears its zone's tile sheet (bare: %s)" % bare.map(func(n: Node) -> String: return n.name))
 		main.popup("test", Vector2.ZERO, 12)
 		_check(main.get_node("HUD").popup_count() == 1, "popups appear")
 		var debug := root.get_node_or_null("Debug")

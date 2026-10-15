@@ -16,17 +16,45 @@ size = Vector2(1120, 200)
 surface = 0
 route_step = 0
 
-[node name="WallLeft" type="StaticBody2D" parent="."]
-position = Vector2(-240, -3200)
+[node name="WallLeft1" type="StaticBody2D" parent="."]
+position = Vector2(-240, -820)
 script = ExtResource("1")
-size = Vector2(240, 3200)
+size = Vector2(240, 820)
 surface = 0
 route_step = -1
 
-[node name="WallRight" type="StaticBody2D" parent="."]
+[node name="WallLeft2" type="StaticBody2D" parent="."]
+position = Vector2(-240, -1860)
+script = ExtResource("1")
+size = Vector2(240, 1040)
+surface = 0
+route_step = -1
+
+[node name="WallLeft3" type="StaticBody2D" parent="."]
+position = Vector2(-240, -3200)
+script = ExtResource("1")
+size = Vector2(240, 1340)
+surface = 0
+route_step = -1
+
+[node name="WallRight1" type="StaticBody2D" parent="."]
+position = Vector2(640, -820)
+script = ExtResource("1")
+size = Vector2(240, 820)
+surface = 0
+route_step = -1
+
+[node name="WallRight2" type="StaticBody2D" parent="."]
+position = Vector2(640, -1860)
+script = ExtResource("1")
+size = Vector2(240, 1040)
+surface = 0
+route_step = -1
+
+[node name="WallRight3" type="StaticBody2D" parent="."]
 position = Vector2(640, -3200)
 script = ExtResource("1")
-size = Vector2(240, 3200)
+size = Vector2(240, 1340)
 surface = 0
 route_step = -1
 
@@ -82,7 +110,7 @@ route_step = 7
 [node name="YPad" type="StaticBody2D" parent="."]
 position = Vector2(330, -572)
 script = ExtResource("1")
-size = Vector2(60, 12)
+size = Vector2(60, 16)
 surface = 2
 route_step = 8
 
@@ -145,7 +173,7 @@ route_step = 16
 [node name="HPad" type="StaticBody2D" parent="."]
 position = Vector2(330, -1420)
 script = ExtResource("1")
-size = Vector2(50, 12)
+size = Vector2(50, 16)
 surface = 2
 route_step = 17
 
@@ -215,7 +243,7 @@ route_step = 26
 [node name="SPad" type="StaticBody2D" parent="."]
 position = Vector2(150, -2310)
 script = ExtResource("1")
-size = Vector2(50, 12)
+size = Vector2(50, 16)
 surface = 2
 route_step = 27
 

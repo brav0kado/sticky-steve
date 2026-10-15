@@ -20,7 +20,7 @@ func _run() -> void:
 	settings.path = "user://test_menu_settings.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(settings.path))
 	prof.data = prof.defaults()
-	prof.data.best_time = 99.0
+	prof.bests("flags").best_time = 99.0
 	prof.data.runs = 1
 	prof.add_gem("GemA")
 	prof.save()
@@ -31,7 +31,7 @@ func _run() -> void:
 	var title := current_scene
 	var climb := _button(title, "Climb")
 	_check(climb != null and climb.has_focus(), "title: Climb has focus (keyboard/pad ready)")
-	_check(_text_in(title, "best 1:39.0"), "title shows the best time")
+	_check(_text_in(title, "flags 1:39.0"), "title shows the flagged best time")
 	_check_fits(title, "title")
 
 	# Reset needs two presses.
@@ -48,7 +48,8 @@ func _run() -> void:
 	# Settings: open, step a volume down with ui_left, it applies to the bus and persists.
 	_button(title, "Settings").pressed.emit()
 	await _frames(2)
-	var panel := title.find_children("*", "PanelContainer", true, false)[0] as Control
+	var panel: Control = title.find_children("*", "PanelContainer", true, false).filter(
+		func(n: Node) -> bool: return n.get_script() and n.get_script().resource_path.ends_with("settings_panel.gd"))[0]
 	_check(panel.visible, "settings opens")
 	_check_fits(title, "settings")
 	var sfx_row := _button_prefix(panel, "Sound effects")
@@ -69,10 +70,43 @@ func _run() -> void:
 	await _frames(1)
 	_check(not panel.visible and _button(title, "Settings").has_focus(), "Back returns to the menu with focus")
 
-	# Climb starts the game; Esc pauses (tree paused, menu up), Resume unpauses.
+	# Climb opens the mode picker with an explainer that follows the focus.
 	climb.pressed.emit()
+	await _frames(2)
+	var flags_btn := _button(title, "With flags")
+	var noflag_btn := _button(title, "No flags")
+	_check(flags_btn != null and flags_btn.is_visible_in_tree() and flags_btn.has_focus(), "Climb opens the mode picker (last mode focused)")
+	_check(_text_in(title, "Press F on solid ground to plant a flag"), "the flags explainer is shown")
+	noflag_btn.grab_focus()
+	await _frames(1)
+	_check(_text_in(title, "No checkpoints") and not _text_in(title, "Press F on solid ground"), "the explainer follows the focus")
+	_check_fits(title, "mode picker")
+
+	# No flags: F and R refuse with a reason, no meter.
+	noflag_btn.pressed.emit()
 	await _frames(4)
-	_check(current_scene.scene_file_path == "res://scenes/main.tscn", "Climb starts the climb")
+	_check(prof.mode == "noflag" and prof.data.last_mode == "noflag", "No flags sets this run's mode (and remembers it)")
+	var g0 := current_scene
+	var s0: Node2D = g0.get_node("Steve")
+	_check(not s0.flags_enabled and not g0.get_node("HUD")._meter.visible, "no-flag climb: planting off, no flag meter")
+	var pops: int = g0.get_node("HUD").popup_count()
+	s0.request_plant()
+	await physics_frame
+	await _frames(1)
+	_check(g0.get_node("HUD").popup_count() > pops and s0.state != 6, "F in a no-flag climb: 'no flags this climb', no plant")
+	_press("pause")
+	await _frames(2)
+	_button(g0.get_node("Pause"), "Quit to title").pressed.emit()
+	await _frames(4)
+	title = current_scene
+	_button(title, "Climb").pressed.emit()
+	await _frames(2)
+	_check(_button(title, "No flags").has_focus(), "the picker remembers the last mode")
+	_button(title, "With flags").pressed.emit()
+	await _frames(4)
+
+	# With flags: Esc pauses (tree paused, menu up), Resume unpauses.
+	_check(current_scene.scene_file_path == "res://scenes/main.tscn" and prof.mode == "flags", "With flags starts a flagged climb")
 	var game := current_scene
 	var pause := game.get_node("Pause")
 	_press("pause")

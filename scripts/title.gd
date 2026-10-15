@@ -2,10 +2,16 @@ extends Control
 ## Title screen (the main scene): Climb, Settings, Reset progress, Quit, with the player's bests
 ## under the name so every return here says "you can beat this". Reset asks twice: the first
 ## press arms it for a few seconds, the second wipes the Profile.
+## Climb opens the mode picker: with flags or without, each with an explainer that follows the
+## focus (so the rules are read at the moment of choosing) and that mode's best.
 
 const GAME := "res://scenes/main.tscn"
 const STEVE_FRAMES := "res://art/steve/steve_frames.tres"
 const RESET_ARM_SECONDS := 3.0
+const EXPLAIN := {
+	"flags": "Press F on solid ground to plant a flag: your checkpoint.\nFall below it and you land back on it. R takes you back any time.\nOne flag every 20 seconds; a new flag replaces the old one.",
+	"noflag": "No checkpoints. Every fall costs all the height you lose.\nOne mistake can send you back to the bottom.\nThe real climb: bests and ranks are kept apart from flagged climbs.",
+}
 
 var _menu: VBoxContainer
 var _title: Label
@@ -14,6 +20,9 @@ var _reset: Button
 var _bests: Label
 var _settings: SettingsPanel
 var _reset_armed_until := 0
+var _modes: Control  # the mode picker panel
+var _mode_buttons: Array[Button] = []
+var _explain: Label
 
 
 func _ready() -> void:
@@ -62,6 +71,8 @@ func _ready() -> void:
 	add_child(_bests)
 	_refresh_bests()
 
+	_build_mode_picker()
+
 	_settings = SettingsPanel.new()
 	_settings.hide()
 	add_child(_settings)
@@ -79,7 +90,61 @@ func _process(_delta: float) -> void:
 
 
 func _climb() -> void:
+	_menu.hide()
+	_bests.hide()
+	_title.hide()  # the picker is taller than the gap under the title
+	_modes.show()
+	_mode_buttons[0 if Profile.data.last_mode == "flags" else 1].grab_focus()
+
+
+func _start(mode: String) -> void:
+	Profile.set_mode(mode)
 	get_tree().change_scene_to_file(GAME)
+
+
+func _build_mode_picker() -> void:
+	var parts := UI.panel()
+	var panel: PanelContainer = parts[0]
+	var box: VBoxContainer = parts[1]
+	panel.offset_top = 20
+	add_child(panel)
+	box.add_child(UI.label("HOW WILL YOU CLIMB?", 18))
+	for m: String in ["flags", "noflag"]:
+		var b := UI.button("With flags" if m == "flags" else "No flags", func() -> void: _start(m))
+		b.focus_entered.connect(func() -> void: _explain_mode(m))
+		box.add_child(b)
+		_mode_buttons.append(b)
+	var back := UI.button("Back", _close_modes)
+	back.focus_entered.connect(func() -> void: _explain.text = "")
+	box.add_child(back)
+	_mode_buttons.append(back)
+	_explain = UI.label("", 12)
+	_explain.custom_minimum_size = Vector2(420, 78)
+	_explain.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	box.add_child(_explain)
+	UI.chain_focus(_mode_buttons)
+	_modes = panel
+	panel.hide()
+
+
+func _explain_mode(m: String) -> void:
+	var best: float = Profile.bests(m).best_time
+	var tail := "\nYour best: %s" % UI.clock(best) if best > 0.0 else "\nNo climb finished yet."
+	_explain.text = EXPLAIN[m] + tail
+
+
+func _close_modes() -> void:
+	_modes.hide()
+	_title.show()
+	_menu.show()
+	_bests.show()
+	_buttons[0].grab_focus()
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _modes.visible and event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		_close_modes()
 
 
 func _open_settings() -> void:
@@ -101,8 +166,16 @@ func _press_reset() -> void:
 
 func _refresh_bests() -> void:
 	var d: Dictionary = Profile.data
-	if d.runs == 0 and d.best_height_m <= 0.0:
+	var f: Dictionary = Profile.bests("flags")
+	var n: Dictionary = Profile.bests("noflag")
+	if d.runs == 0 and f.best_height_m <= 0.0 and n.best_height_m <= 0.0:
 		_bests.text = "Charge. Commit. Climb."
 		return
-	var t := "best %s" % UI.clock(d.best_time) if d.best_time > 0.0 else "best height %d m" % roundi(d.best_height_m)
-	_bests.text = "%s     gems found %d     best streak %d     climbs %d" % [t, d.gems.size(), d.best_streak, d.runs]
+	_bests.text = "flags %s     no flags %s     gems %d     best streak %d     climbs %d" % [
+		_best_text(f), _best_text(n), d.gems.size(), d.best_streak, d.runs]
+
+
+func _best_text(b: Dictionary) -> String:
+	if b.best_time > 0.0:
+		return UI.clock(b.best_time)
+	return "%d m" % roundi(b.best_height_m) if b.best_height_m > 0.0 else "-"

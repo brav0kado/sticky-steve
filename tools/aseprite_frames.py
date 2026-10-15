@@ -8,6 +8,9 @@ install. Stdlib only.
     tools/aseprite_frames.py art/source/stickysteve.aseprite art/steve/steve.png art/steve/steve_frames.tres
     tools/aseprite_frames.py --render art/source/stickysteve.aseprite art/steve/steve.png art/steve/steve_frames.tres
 
+OUT may be "-" to skip the SpriteFrames (a tile sheet only needs the PNG):
+    tools/aseprite_frames.py --render art/source/zone1_tiles.aseprite art/world/zone1_tiles.png -
+
 --render draws the PNG itself from the .aseprite (one row per tag, like Aseprite's "By Rows +
 Split Tags" export), so saving in Aseprite is the only step. Supports RGBA files with any number
 of normal-blend layers; hidden layers and layers named with a leading "_" (guides) are skipped.
@@ -311,14 +314,15 @@ def main() -> int:
             print(f"rendered {a.png}")
         cells = layout(ase, *png_size(a.png))
         check_cells(ase, cells, png_alpha(a.png))
-        write_tres(ase, cells, res_path(a.png), a.out)
+        if str(a.out) != "-":
+            write_tres(ase, cells, res_path(a.png), a.out)
     except (SheetError, OSError, struct.error) as e:
         print(f"aseprite_frames: {e}", file=sys.stderr)
         return 1
     for name, start, end, repeat in ase["tags"]:
         loop = "once" if repeat > 0 or name in ONE_SHOT else "loop"
         print(f"  {name:<14} {end - start + 1} frames  {loop}")
-    print(f"wrote {a.out}")
+    print(f"wrote {a.out}" if str(a.out) != "-" else "no SpriteFrames (-)")
     return 0
 
 

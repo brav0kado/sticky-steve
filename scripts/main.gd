@@ -10,6 +10,7 @@ extends Node2D
 const FLAG_FRAMES := "res://art/flag/flag_frames.tres"
 const FLAG_BASE := Vector2(25, 31)  ## flag.png: pixel at the bottom of its pole (32x32 cell)
 const PX_PER_M := 12.0
+const ZONE_TILES := "res://art/world/zone%d_tiles.png"  ## Martin's tile sheet per zone (art spec)
 ## Edge-landing slow-mo: how slow, and for how long in real seconds.
 const EDGE_SLOWMO_SCALE := 0.25
 const EDGE_SLOWMO_SECONDS := 0.5
@@ -43,7 +44,9 @@ var _start_best_m := 0.0
 
 
 func _ready() -> void:
-	_start_best_m = Profile.data.best_height_m
+	steve.flags_enabled = Profile.mode == "flags"
+	hud.flags_enabled = steve.flags_enabled
+	_start_best_m = Profile.bests().best_height_m
 	for g in tower.find_children("*", "Area2D", true, false):
 		if g is Gem:
 			_gems_total += 1
@@ -51,6 +54,7 @@ func _ready() -> void:
 			g.collected.connect(_on_gem)
 	_zones = tower.find_children("*", "Node2D", true, false).filter(func(n: Node) -> bool: return n is Zone)
 	_zones.sort_custom(func(a: Zone, b: Zone) -> bool: return a.index < b.index)
+	_skin_blocks()
 	hud.bind(steve, _gems_total, _start_best_m)
 	best_line.set_meta("y", steve.global_position.y - _start_best_m * PX_PER_M)
 	best_line.draw.connect(_draw_best_line)
@@ -182,8 +186,9 @@ func _on_gem(gem: Gem) -> void:
 	hitstop(0.04)
 
 
-func _on_plant_refused(cooldown_left: float) -> void:
-	var why := "flag in %ds" % ceili(cooldown_left) if cooldown_left > 0.0 else "land to plant"
+func _on_plant_refused(reason: String) -> void:
+	var why: String = {"cooldown": "flag in %ds" % ceili(steve.cooldown), "air": "land to plant",
+		"noflag": "no flags this climb"}.get(reason, "")
 	popup(why, steve.global_position + Vector2(0, -34), 13)
 	Sfx.play("charge_tick", 0.5, -6.0)
 
@@ -216,7 +221,7 @@ func _on_summit(body: Node2D) -> void:
 	Sfx.play("summit")
 	var t: float = hud.elapsed
 	var s: Dictionary = steve.stats
-	var best_before: float = Profile.data.best_time
+	var best_before: float = Profile.bests().best_time
 	var new_best: bool = Profile.record_finish(t, s.best_streak)
 	var records := []
 	if new_best:
@@ -230,7 +235,31 @@ func _on_summit(body: Node2D) -> void:
 		["a streak of 3 perfects", s.best_streak >= 3],
 	]
 	var passed := checks.filter(func(c: Array) -> bool: return c[1]).size()
+	if Profile.mode == "noflag":
+		records.push_front("NO FLAGS")
 	hud.show_summit(["D", "C", "B", "A", "S"][passed], checks, records)
+
+
+## Each block wears its zone's tile sheet (the zone its centre is in); a zone without a sheet
+## keeps the greybox look, so art can arrive one zone at a time.
+func _skin_blocks() -> void:
+	var sheets := {}
+	for z: Zone in _zones:
+		var path := ZONE_TILES % z.index
+		if ResourceLoader.exists(path):
+			sheets[z.index] = load(path)
+	for b in tower.get_children():
+		if b is Block:
+			b.skin = sheets.get(zone_at(b.global_position.y + b.size.y / 2.0))
+
+
+## The zone (index) a world y is in: the highest zone whose start line is at or below it.
+func zone_at(y: float) -> int:
+	var idx := 1
+	for z: Zone in _zones:
+		if y <= z.global_position.y:
+			idx = z.index
+	return idx
 
 
 # ---------------------------------------------------------------- progress
